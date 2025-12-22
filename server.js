@@ -12,6 +12,20 @@ const upload = multer({ dest: 'uploads/', limits: { fileSize: 200 * 1024 } }); /
 app.use(cors());
 app.use(express.json());
 
+// CSP 헤더 설정 (미디어 로딩 관련 문제 해결용)
+app.use((req, res, next) => {
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; media-src 'self' data:; img-src 'self' data:; script-src 'self'; style-src 'self';"
+  );
+  next();
+});
+
+// 루트 경로 기본 응답 추가
+app.get('/', (req, res) => {
+  res.send('Hello! Server is running.');
+});
+
 // OpenAI 클라이언트 초기화
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -23,7 +37,6 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   const imagePath = req.file.path;
-
   const formData = new FormData();
   formData.append('photo', fs.createReadStream(imagePath), req.file.originalname);
 
