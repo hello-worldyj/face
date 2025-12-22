@@ -46,7 +46,7 @@
 
     submitBtn.addEventListener('click', async () => {
       if (!photoInput.files.length) {
-        alert('사진 선택');
+        alert('사진을 선택해 주세요');
         return;
       }
 
@@ -54,7 +54,7 @@
       const formData = new FormData();
       formData.append('photo', file);
 
-      resultDiv.textContent = 'ㄱㄷ';
+      resultDiv.textContent = '처리 중... 잠시만 기다려 주세요';
 
       try {
         const response = await fetch('/upload', {
@@ -64,7 +64,7 @@
 
         if (!response.ok) {
           const err = await response.json();
-          throw new Error(err.error || '딴 사진 시도');
+          throw new Error(err.error || '업로드 실패');
         }
 
         const data = await response.json();
@@ -74,7 +74,7 @@
           resultDiv.textContent = JSON.stringify(data, null, 2);
         }
       } catch (e) {
-        resultDiv.textContent = `딴 사진 시도`;
+        resultDiv.textContent = `업로드 실패: ${e.message}`;
       }
     });
   </script>
