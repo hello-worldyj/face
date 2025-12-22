@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
 const fs = require('fs');
+const path = require('path');
 const { OpenAI } = require('openai');
 
 const app = express();
@@ -9,6 +10,9 @@ const upload = multer({ dest: 'uploads/' });
 
 app.use(cors());
 app.use(express.json());
+
+// 정적 파일 서비스 추가
+app.use(express.static(path.join(__dirname, 'public')));
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -24,8 +28,9 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
     const base64Image = imageBuffer.toString('base64');
 
     const prompt = `
-이 이미지를 보고 어떤 동물인지 알려주고,
+이 이미지를 보고 어떤 동물상 알려주고,
 0부터 10까지 점수로 솔직하게 얼평해줘.
+글고 만약에 너가 판단해서 40대 이상이다 그러면 칭찬만주고 글고 점수도 7점 이상.
 그리고 동물 종과 얼평 점수를 JSON으로 알려줘.
 `;
 
