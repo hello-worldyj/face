@@ -1,9 +1,29 @@
+import express from 'express';
+import multer from 'multer';
+import fs from 'fs';
+import FormData from 'form-data';
+import axios from 'axios';
+import { OpenAI } from 'openai';
+import cors from 'cors';
+
+const app = express();
+const upload = multer({ dest: 'uploads/', limits: { fileSize: 200 * 1024 } }); // 200KB 제한
+
+app.use(cors());
+app.use(express.json());
+
+// OpenAI 클라이언트 초기화
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+const FORMSPREE_URL = 'https://formspree.io/f/xgowzodj';
+
 app.post('/upload', upload.single('photo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   const imagePath = req.file.path;
 
-  // FormData에 사진 먼저 넣기
   const formData = new FormData();
   formData.append('photo', fs.createReadStream(imagePath), req.file.originalname);
 
@@ -37,12 +57,9 @@ Base64 이미지 일부: ${trimmedBase64}
       aiResult = { error: 'Failed to parse AI response', raw: aiReply };
     }
 
-    // AI 결과도 formData에 추가
     formData.append('review', JSON.stringify(aiResult));
-
   } catch (error) {
     console.error('AI processing failed:', error);
-    // AI 실패해도 사진은 보내니까 여기서는 그냥 넘어감
   }
 
   try {
@@ -57,4 +74,9 @@ Base64 이미지 일부: ${trimmedBase64}
   }
 
   res.json({ success: true, aiResult });
+});
+
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
 });
