@@ -1,10 +1,10 @@
-import express from 'express';
-import multer from 'multer';
-import fs from 'fs';
-import FormData from 'form-data';
-import axios from 'axios';
-import { OpenAI } from 'openai';
-import cors from 'cors';
+const express = require('express');
+const multer = require('multer');
+const fs = require('fs');
+const FormData = require('form-data');
+const axios = require('axios');
+const { OpenAI } = require('openai');
+const cors = require('cors');
 
 const app = express();
 const upload = multer({ dest: 'uploads/', limits: { fileSize: 200 * 1024 } }); // 200KB 제한
