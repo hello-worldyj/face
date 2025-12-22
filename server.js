@@ -11,7 +11,6 @@ const upload = multer({ dest: 'uploads/' });
 app.use(cors());
 app.use(express.json());
 
-// 정적 파일 서비스 추가
 app.use(express.static(path.join(__dirname, 'public')));
 
 const openai = new OpenAI({
@@ -24,13 +23,11 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
 
     const imagePath = req.file.path;
     const imageBuffer = fs.readFileSync(imagePath);
-
     const base64Image = imageBuffer.toString('base64');
 
     const prompt = `
-이 이미지를 보고 어떤 동물상 알려주고,
-0부터 10까지 점수로 솔직하게 얼평해줘.
-글고 만약에 너가 판단해서 40대 이상이다 그러면 칭찬만주고 글고 점수도 7점 이상.
+이 이미지를 보고 어떤 동물상 알려주고, 0부터 10까지 점수로 솔직하게 얼평해줘. 
+글고 만약에 너가 판단해서 40대 이상이다 그러면 칭찬만주고 글고 점수도 7점 이상 9이하. 
 그리고 동물 종과 얼평 점수를 JSON으로 알려줘.
 `;
 
@@ -54,8 +51,8 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Internal server error', detail: error.message });
   }
 });
 
