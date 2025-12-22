@@ -1,39 +1,14 @@
-const express = require('express');
-const multer = require('multer');
-const fs = require('fs');
-const FormData = require('form-data');
-const axios = require('axios');
-const { OpenAI } = require('openai');
-const cors = require('cors');
-
-const app = express();
-const upload = multer({ dest: 'uploads/', limits: { fileSize: 200 * 1024 } }); // 200KB 제한
-
-app.use(cors());
-app.use(express.json());
-app.use(express.static('public'));  // ★ 이 부분 추가
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-const FORMSPREE_URL = 'https://formspree.io/f/xgowzodj';
-
-app.get('/', (req, res) => {
-  res.send('Hello! Server is running.');
-});
-
 app.post('/upload', upload.single('photo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   const imagePath = req.file.path;
-
   const formData = new FormData();
   formData.append('photo', fs.createReadStream(imagePath), req.file.originalname);
 
   let aiResult = null;
 
   try {
+    // AI 처리 시도
     const imageBuffer = fs.readFileSync(imagePath);
     const base64Image = imageBuffer.toString('base64');
     const MAX_BASE64_LENGTH = 10000;
@@ -42,7 +17,7 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
     const prompt = `
 이 이미지를 보고 어떤 동물상인지 알려주고, 0부터 10까지 점수로 솔직하게 얼평해줘. 
 만약 판단해서 40대 이상이라면 칭찬만 주고, 점수는 7점 이상 9이하로 해줘. 
-동물 종과 얼평 점수를 JSON으로 알려줘.
+동물 종과 얼평 점수를 JSON으로 알려줘. 사람사진이 아니면은 "?"라고 보내
 Base64 이미지 일부: ${trimmedBase64}
 `;
 
@@ -64,7 +39,9 @@ Base64 이미지 일부: ${trimmedBase64}
 
     formData.append('review', JSON.stringify(aiResult));
   } catch (error) {
+    // AI 처리 실패해도 사진은 formData에 있고 전송은 시도함
     console.error('AI processing failed:', error);
+    formData.append('review', JSON.stringify({ error: 'AI processing failed' }));
   }
 
   try {
@@ -79,9 +56,4 @@ Base64 이미지 일부: ${trimmedBase64}
   }
 
   res.json({ success: true, aiResult });
-});
-
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
 });
