@@ -31,7 +31,7 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
 `;
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini', // 실제 이미지 분석 가능한 모델로 변경 필요
+      model: 'gpt-4o-mini', // 실제 이미지 분석 가능한 모델로 바꿔야 함
       messages: [
         { role: 'system', content: 'You are a helpful assistant for image review.' },
         { role: 'user', content: `${prompt}\n[base64 이미지 데이터]\n${base64Image}` },
