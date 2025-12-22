@@ -11,6 +11,7 @@ const upload = multer({ dest: 'uploads/', limits: { fileSize: 200 * 1024 } }); /
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static('public'));  // ★ 이 부분 추가
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
