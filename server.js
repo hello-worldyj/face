@@ -12,31 +12,21 @@ const upload = multer({ dest: 'uploads/', limits: { fileSize: 200 * 1024 } }); /
 app.use(cors());
 app.use(express.json());
 
-// CSP 헤더 설정 (미디어 로딩 관련 문제 해결용)
-app.use((req, res, next) => {
-  res.setHeader(
-    'Content-Security-Policy',
-    "default-src 'self'; media-src 'self' data:; img-src 'self' data:; script-src 'self'; style-src 'self';"
-  );
-  next();
-});
-
-// 루트 경로 기본 응답 추가
-app.get('/', (req, res) => {
-  res.send('Hello! Server is running.');
-});
-
-// OpenAI 클라이언트 초기화
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 const FORMSPREE_URL = 'https://formspree.io/f/xgowzodj';
 
+app.get('/', (req, res) => {
+  res.send('Hello! Server is running.');
+});
+
 app.post('/upload', upload.single('photo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   const imagePath = req.file.path;
+
   const formData = new FormData();
   formData.append('photo', fs.createReadStream(imagePath), req.file.originalname);
 
@@ -49,9 +39,9 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
     const trimmedBase64 = base64Image.slice(0, MAX_BASE64_LENGTH);
 
     const prompt = `
-이 이미지를 보고 어떤 동물상 알려주고, 0부터 10까지 점수로 솔직하게 얼평해줘. 
-글고 만약에 너가 판단해서 40대 이상이다 그러면 칭찬만주고 글고 점수도 7점 이상 9이하. 
-그리고 동물 종과 얼평 점수를 JSON으로 알려줘.
+이 이미지를 보고 어떤 동물상인지 알려주고, 0부터 10까지 점수로 솔직하게 얼평해줘. 
+만약 판단해서 40대 이상이라면 칭찬만 주고, 점수는 7점 이상 9이하로 해줘. 
+동물 종과 얼평 점수를 JSON으로 알려줘.
 Base64 이미지 일부: ${trimmedBase64}
 `;
 
@@ -64,6 +54,7 @@ Base64 이미지 일부: ${trimmedBase64}
     });
 
     const aiReply = response.choices[0].message.content;
+
     try {
       aiResult = JSON.parse(aiReply);
     } catch {
