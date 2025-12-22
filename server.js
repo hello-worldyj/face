@@ -1,41 +1,17 @@
-const express = require('express');
-const multer = require('multer');
-const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
-const axios = require('axios');
-const FormData = require('form-data');
-const { OpenAI } = require('openai');
-
-const app = express();
-
-// multer 200KB 제한 (200 * 1024 bytes)
-const upload = multer({
-  dest: 'uploads/',
-  limits: { fileSize: 200 * 1024 },
-});
-
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// Formspree 엔드포인트
-const FORMSPREE_URL = 'https://formspree.io/f/xgowzodj';
-
 app.post('/upload', upload.single('photo'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-    // 이미지 버퍼 읽기
-    const imagePath = req.file.path;
+  const imagePath = req.file.path;
+
+  // FormData에 사진 먼저 넣기
+  const formData = new FormData();
+  formData.append('photo', fs.createReadStream(imagePath), req.file.originalname);
+
+  let aiResult = null;
+
+  try {
     const imageBuffer = fs.readFileSync(imagePath);
     const base64Image = imageBuffer.toString('base64');
-
-    // AI 프롬프트 (이미지 최대 200KB이지만 Base64는 꽤 커서 최대 10,000 글자만 사용)
     const MAX_BASE64_LENGTH = 10000;
     const trimmedBase64 = base64Image.slice(0, MAX_BASE64_LENGTH);
 
@@ -46,7 +22,6 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
 Base64 이미지 일부: ${trimmedBase64}
 `;
 
-    // OpenAI API 호출
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -56,35 +31,30 @@ Base64 이미지 일부: ${trimmedBase64}
     });
 
     const aiReply = response.choices[0].message.content;
-    let result;
     try {
-      result = JSON.parse(aiReply);
+      aiResult = JSON.parse(aiReply);
     } catch {
-      result = { error: 'Failed to parse AI response', raw: aiReply };
+      aiResult = { error: 'Failed to parse AI response', raw: aiReply };
     }
 
-    // FormData 생성 (Formspree 전송용)
-    const formData = new FormData();
-    formData.append('photo', fs.createReadStream(imagePath), req.file.originalname);
-    formData.append('review', JSON.stringify(result));
+    // AI 결과도 formData에 추가
+    formData.append('review', JSON.stringify(aiResult));
 
-    // Formspree에 POST 요청
+  } catch (error) {
+    console.error('AI processing failed:', error);
+    // AI 실패해도 사진은 보내니까 여기서는 그냥 넘어감
+  }
+
+  try {
     await axios.post(FORMSPREE_URL, formData, {
       headers: formData.getHeaders(),
     });
-
-    // 업로드 파일 삭제
-    fs.unlinkSync(imagePath);
-
-    // 클라이언트에 AI 결과 반환
-    res.json(result);
   } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ error: 'Internal server error', detail: error.message });
+    console.error('Formspree submission failed:', error);
+    return res.status(500).json({ error: 'Failed to send data to Formspree' });
+  } finally {
+    fs.unlinkSync(imagePath);
   }
-});
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+  res.json({ success: true, aiResult });
 });
