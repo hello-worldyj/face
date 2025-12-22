@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 얼평 앱</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 480px;
+      margin: 40px auto;
+      padding: 0 20px;
+      text-align: center;
+    }
+    input[type="file"] {
+      margin-top: 20px;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #result {
+      margin-top: 30px;
+      white-space: pre-wrap;
+      text-align: left;
+      background: #f0f0f0;
+      padding: 15px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>AI 얼평 앱</h1>
+  <input type="file" id="photoInput" accept="image/*" />
+  <br />
+  <button id="submitBtn">사진 보내기</button>
+
+  <div id="result"></div>
+
+  <script>
+    const photoInput = document.getElementById('photoInput');
+    const submitBtn = document.getElementById('submitBtn');
+    const resultDiv = document.getElementById('result');
+
+    submitBtn.addEventListener('click', async () => {
+      if (!photoInput.files.length) {
+        alert('사진을 선택해주세요!');
+        return;
+      }
+
+      const file = photoInput.files[0];
+      const formData = new FormData();
+      formData.append('photo', file);
+
+      resultDiv.textContent = '분석 중... 잠시만 기다려주세요.';
+
+      try {
+        const response = await fetch('/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || '서버 에러');
+        }
+
+        const data = await response.json();
+        if (data.error) {
+          resultDiv.textContent = `에러: ${data.error}`;
+        } else {
+          resultDiv.textContent = JSON.stringify(data, null, 2);
+        }
+      } catch (e) {
+        resultDiv.textContent = `에러 발생: ${e.message}`;
+      }
+    });
+  </script>
+</body>
+</html>
