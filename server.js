@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
 const fs = require('fs');
-const { Configuration, OpenAIApi } = require('openai');
+const { OpenAI } = require('openai');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
@@ -10,10 +10,9 @@ const upload = multer({ dest: 'uploads/' });
 app.use(cors());
 app.use(express.json());
 
-const configuration = new Configuration({
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-const openai = new OpenAIApi(configuration);
 
 app.post('/upload', upload.single('photo'), async (req, res) => {
   try {
@@ -31,7 +30,7 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
 `;
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini', // 실제 이미지 분석 가능한 모델로 바꿔야 함
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: 'You are a helpful assistant for image review.' },
         { role: 'user', content: `${prompt}\n[base64 이미지 데이터]\n${base64Image}` },
