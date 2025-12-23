@@ -1,15 +1,21 @@
 {
-  "name": "crush-face-rate",
+  "name": "face-ai-review",
   "version": "1.0.0",
-  "main": "server.js",
+  "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
+    "axios": "^1.6.8",
+    "cors": "^2.8.5",
     "express": "^4.19.2",
-    "multer": "^1.4.5-lts.2",
+    "form-data": "^4.0.0",
+    "multer": "^2.0.0",
     "node-fetch": "^3.3.2",
-    "openai": "^4.40.0"
+    "openai": "^4.38.2"
   }
 }
