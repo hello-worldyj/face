@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>AI 얼평 테스트</title>
+  <style>
+    body { font-family: Arial; text-align:center; padding:40px; }
+    input, button { margin-top:10px; }
+  </style>
+</head>
+<body>
+
+<h1>📸 AI 얼평</h1>
+
+<form id="form">
+  <input type="file" name="photo" accept="image/*" required>
+  <br>
+  <button>업로드</button>
+</form>
+
+<p id="result"></p>
+
+<script>
+document.getElementById("form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+
+  const res = await fetch("/upload", {
+    method: "POST",
+    body: formData
+  });
+
+  const data = await res.json();
+  document.getElementById("result").innerText = data.result;
+});
+</script>
+
+</body>
+</html>
