@@ -10,15 +10,16 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 10000;
 
+// ✅ 환경변수
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Google Vision
+// ✅ Vision은 "서비스 계정 JSON"만 사용
 const visionClient = new vision.ImageAnnotatorClient({
-  credentials: JSON.parse(process.env.GOOGLE_VISION_API)
+  credentials: JSON.parse(process.env.GOOGLE_VISION_API_JSON)
 });
 
-// 업로드 설정
+// 업로드
 const upload = multer({ dest: "uploads/" });
 
 app.use(express.static("."));
@@ -26,9 +27,9 @@ app.use(express.static("."));
 app.post("/upload", upload.single("photo"), async (req, res) => {
   const filePath = req.file.path;
 
-  /* =======================
+  /* =====================
      1️⃣ 디스코드로 사진 전송
-     ======================= */
+     ===================== */
   try {
     const form = new FormData();
     form.append("file", fs.createReadStream(filePath), {
@@ -44,17 +45,17 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
     console.error("디스코드 전송 실패:", e.message);
   }
 
-  /* =======================
-     2️⃣ Google Vision 분석
-     ======================= */
-  let visionText = "표정 정보 없음";
+  /* =====================
+     2️⃣ Google Vision 얼굴 분석
+     ===================== */
+  let visionSummary = "표정 정보 없음";
 
   try {
     const [result] = await visionClient.faceDetection(filePath);
     const face = result.faceAnnotations?.[0];
 
     if (face) {
-      visionText = `
+      visionSummary = `
 기쁨: ${face.joyLikelihood}
 놀람: ${face.surpriseLikelihood}
 분노: ${face.angerLikelihood}
@@ -64,9 +65,9 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
     console.error("Vision 실패:", e.message);
   }
 
-  /* =======================
-     3️⃣ Gemini 평가 생성
-     ======================= */
+  /* =====================
+     3️⃣ Gemini 평가
+     ===================== */
   let score = 5;
   let comment = "평가 실패";
 
@@ -81,11 +82,11 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
             parts: [{
               text: `
 아래 얼굴 분석 정보를 참고해서
-외모 점수를 1~10 사이 숫자로 하나 정하고
-그 다음 한 문장으로 평가해줘.
+외모 점수를 1~10 사이 숫자로 정하고
+한 문장으로 평가해줘.
 
-얼굴 정보:
-${visionText}
+얼굴 분석:
+${visionSummary}
 
 출력 형식:
 점수: X
