@@ -3,85 +3,39 @@
 <head>
   <meta charset="utf-8" />
   <title>AI 얼굴 평가</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background: linear-gradient(135deg, #0f766e, #14b8a6);
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      color: #fff;
-    }
-    .card {
-      background: rgba(255,255,255,0.1);
-      backdrop-filter: blur(16px);
-      border-radius: 20px;
-      padding: 32px;
-      width: 320px;
-      text-align: center;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.25);
-    }
-    h1 {
-      margin-bottom: 20px;
-      font-size: 22px;
-    }
-    input[type=file] {
-      width: 100%;
-      padding: 16px;
-      border-radius: 12px;
-      border: none;
-      background: rgba(255,255,255,0.2);
-      color: white;
-      cursor: pointer;
-    }
-    button {
-      margin-top: 16px;
-      width: 100%;
-      padding: 14px;
-      border-radius: 14px;
-      border: none;
-      font-size: 16px;
-      background: #2dd4bf;
-      color: #042f2e;
-      cursor: pointer;
-      font-weight: 600;
-    }
-    #result {
-      margin-top: 18px;
-      font-size: 15px;
-    }
-  </style>
 </head>
 <body>
-  <div class="card">
-    <h1>AI 얼굴 평가</h1>
-    <form id="form">
-      <input type="file" name="photo" accept="image/*" required />
-      <button>평가 받기</button>
-    </form>
-    <div id="result"></div>
-  </div>
+  <h2>AI 얼굴 평가</h2>
+
+  <form id="uploadForm">
+    <input type="file" name="photo" accept="image/*" required />
+    <button type="submit">평가 받기</button>
+  </form>
+
+  <div id="result"></div>
 
   <script>
-    const form = document.getElementById("form");
+    const form = document.getElementById("uploadForm");
     const result = document.getElementById("result");
 
-    form.addEventListener("submit", async e => {
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      result.textContent = "분석 중...";
+      result.innerText = "ㄱㄷ....";
 
-      const data = new FormData(form);
+      const formData = new FormData(form);
 
       const res = await fetch("/upload", {
         method: "POST",
-        body: data
+        body: formData
       });
 
-      const json = await res.json();
-      result.textContent = json.result || "평가 완료";
+      const data = await res.json();
+
+      result.innerHTML = `
+        <h3>얼굴 평가 결과</h3>
+        <p><b>점수:</b> ${data.score} / 10</p>
+        <p>${data.comment}</p>
+      `;
     });
   </script>
 </body>
