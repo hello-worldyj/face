@@ -7,35 +7,29 @@
 <body>
   <h2>AI 얼굴 평가</h2>
 
-  <form id="uploadForm">
+  <form id="form">
     <input type="file" name="photo" accept="image/*" required />
-    <button type="submit">평가 받기</button>
+    <button>평가 받기</button>
   </form>
 
-  <div id="result"></div>
+  <pre id="result"></pre>
 
   <script>
-    const form = document.getElementById("uploadForm");
+    const form = document.getElementById("form");
     const result = document.getElementById("result");
 
-    form.addEventListener("submit", async (e) => {
+    form.addEventListener("submit", async e => {
       e.preventDefault();
-      result.innerText = "ㄱㄷ.....";
-
-      const formData = new FormData(form);
+      result.textContent = "ㄱㄷ...";
 
       const res = await fetch("/upload", {
         method: "POST",
-        body: formData
+        body: new FormData(form)
       });
 
-      const data = await res.json();
-
-      result.innerHTML = `
-        <h3>결과</h3>
-        <p><b>점수:</b> ${data.score} / 10</p>
-        <p>${data.comment}</p>
-      `;
+      const json = await res.json();
+      result.textContent =
+        `점수: ${json.score}/10\n\n평가:\n${json.comment}`;
     });
   </script>
 </body>
