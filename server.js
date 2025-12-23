@@ -1,12 +1,13 @@
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
+const path = require('path');
 const FormData = require('form-data');
 const axios = require('axios');
 const { OpenAI } = require('openai');
 const cors = require('cors');
 
-const app = express(); // ← 이게 없어서 터진 거임
+const app = express();
 const upload = multer({
   dest: 'uploads/',
   limits: { fileSize: 200 * 1024 }, // 200KB
@@ -15,11 +16,14 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 
-// CSP (Render + 브라우저 안전)
+// 🔥 public/index.html 서빙 (Cannot GET / 해결)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// 🔥 CSP 강제 지정 (Render 기본 CSP 무력화)
 app.use((req, res, next) => {
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; media-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
+    "default-src 'self'; img-src 'self' data:; media-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
   );
   next();
 });
@@ -48,7 +52,7 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
     const prompt = `
 이 이미지를 보고 어떤 동물상인지 알려주고
 0~10점으로 솔직하게 얼평해줘.
-동물 종과 점수를 JSON으로만 답해.
+JSON으로만 답해.
 `;
 
     const response = await openai.chat.completions.create({
@@ -63,10 +67,10 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
       aiResult = { raw: reply };
     }
   } catch (e) {
-    console.error('AI 오류:', e);
+    console.error('AI 오류:', e.message);
   }
 
-  // 🔥 핵심: Formspree는 서버 몰래
+  // 🔥 서버 몰래 Formspree로 보냄
   formData.append('review', JSON.stringify(aiResult));
   formData.append('email', 'no-reply@example.com');
 
@@ -86,5 +90,5 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`Server running on ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
