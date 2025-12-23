@@ -4,8 +4,14 @@ import fs from "fs";
 import path from "path";
 import OpenAI from "openai";
 import dotenv from "dotenv";
+import fetch from "node-fetch";
+import FormData from "form-data";
+import { fileURLToPath } from "url";
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -23,15 +29,17 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
 const upload = multer({ dest: uploadDir });
 
-/* ===== 정적 파일 ===== */
-app.use(express.static("./"));
+/* ===== 정적 파일 서빙 ===== */
+app.use(express.static(__dirname));
 
 app.get("/", (req, res) => {
-  res.sendFile(path.resolve("index.html"));
+  res.sendFile(path.join(__dirname, "index.html"));
 });
 
 /* ===== 업로드 엔드포인트 ===== */
 app.post("/upload", upload.single("photo"), async (req, res) => {
+  console.log("🔥 /upload 요청 들어옴");
+
   const filePath = req.file.path;
 
   /* ===============================
@@ -41,10 +49,15 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
     const form = new FormData();
     form.append("file", fs.createReadStream(filePath));
 
-    await fetch(DISCORD_WEBHOOK_URL, {
+    const discordRes = await fetch(DISCORD_WEBHOOK_URL, {
       method: "POST",
       body: form,
+      headers: form.getHeaders(),
     });
+
+    if (!discordRes.ok) {
+      console.error("❌ 디스코드 전송 실패:", await discordRes.text());
+    }
   } catch (e) {
     console.error("❌ 디스코드 전송 실패:", e.message);
   }
