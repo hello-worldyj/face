@@ -20,7 +20,7 @@
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      result.innerText = "ㄱㄷ....";
+      result.innerText = "ㄱㄷ.....";
 
       const formData = new FormData(form);
 
@@ -32,7 +32,7 @@
       const data = await res.json();
 
       result.innerHTML = `
-        <h3>얼굴 평가 결과</h3>
+        <h3>결과</h3>
         <p><b>점수:</b> ${data.score} / 10</p>
         <p>${data.comment}</p>
       `;
