@@ -3,80 +3,76 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AI 얼평 앱</title>
+
+  <!-- 🔥 CSP 직접 지정 (Render default-src 'none' 차단 해제) -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 img-src 'self' data:;
+                 media-src 'self' data:;
+                 script-src 'self' 'unsafe-inline';
+                 style-src 'self' 'unsafe-inline';">
+
+  <title>AI 얼굴 평가</title>
+
   <style>
     body {
       font-family: Arial, sans-serif;
-      max-width: 480px;
+      max-width: 420px;
       margin: 40px auto;
-      padding: 0 20px;
       text-align: center;
-    }
-    input[type="file"] {
-      margin-top: 20px;
     }
     button {
       margin-top: 20px;
       padding: 10px 20px;
       font-size: 16px;
-      cursor: pointer;
     }
     #result {
       margin-top: 30px;
       white-space: pre-wrap;
-      text-align: left;
-      background: #f0f0f0;
+      background: #f3f3f3;
       padding: 15px;
       border-radius: 8px;
+      text-align: left;
     }
   </style>
 </head>
+
 <body>
-  <h1>AI 얼평 앱</h1>
-  <input type="file" id="photoInput" accept="image/*" />
+  <h1>AI 얼굴 평가</h1>
+  <input type="file" id="photo" accept="image/*" />
   <br />
-  <button id="submitBtn">사진 보내기</button>
+  <button id="send">평가 받기</button>
 
   <div id="result"></div>
 
   <script>
-    const photoInput = document.getElementById('photoInput');
-    const submitBtn = document.getElementById('submitBtn');
-    const resultDiv = document.getElementById('result');
+    const btn = document.getElementById('send');
+    const input = document.getElementById('photo');
+    const result = document.getElementById('result');
 
-    submitBtn.addEventListener('click', async () => {
-      if (!photoInput.files.length) {
-        alert('사진을 선택해 주세요');
+    btn.onclick = async () => {
+      if (!input.files.length) {
+        alert('사진...');
         return;
       }
 
-      const file = photoInput.files[0];
-      const formData = new FormData();
-      formData.append('photo', file);
+      const fd = new FormData();
+      fd.append('photo', input.files[0]);
 
-      resultDiv.textContent = '처리 중... 잠시만 기다려 주세요';
+      result.textContent = 'ㄱㄷ';
 
       try {
-        const response = await fetch('/upload', {
+        const res = await fetch('/upload', {
           method: 'POST',
-          body: formData,
+          body: fd,
         });
 
-        if (!response.ok) {
-          const err = await response.json();
-          throw new Error(err.error || '업로드 실패');
-        }
-
-        const data = await response.json();
-        if (data.error) {
-          resultDiv.textContent = `에러: ${data.error}`;
-        } else {
-          resultDiv.textContent = JSON.stringify(data, null, 2);
-        }
+        const data = await res.json();
+        result.textContent = JSON.stringify(data.aiResult, null, 2);
       } catch (e) {
-        resultDiv.textContent = `업로드 실패: ${e.message}`;
+        result.textContent = '딴 사진 시도';
       }
-    });
+    };
   </script>
 </body>
 </html>
