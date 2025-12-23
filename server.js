@@ -22,7 +22,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// CSP (Render default-src 'none' 방지)
+// CSP 에러 방지
 app.use((req, res, next) => {
   res.setHeader(
     'Content-Security-Policy',
@@ -42,12 +42,21 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
     return res.json({ success: true, aiResult: null });
   }
 
+  console.log('UPLOAD HIT:', req.file.filename);
+
   const imagePath = req.file.path;
   const imageBuffer = fs.readFileSync(imagePath);
 
-  let aiResult = { error: 'AI failed' };
+  let aiResult = {
+    animal_type: 'unknown',
+    eye: 'unknown',
+    nose: 'unknown',
+    mouth: 'unknown',
+    overall_impression: 'analysis failed',
+    score: 0,
+  };
 
-  // 🔥 진짜 얼굴 인식
+  // AI 얼굴 분석
   try {
     const response = await openai.responses.create({
       model: 'gpt-4o',
@@ -58,15 +67,10 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
             {
               type: 'input_text',
               text: `
-너는 얼굴 분석 전문가다.
 사진을 실제로 보고 판단해라.
+아부 금지, 솔직하게.
 
-- 눈, 코, 입 크기 솔직히
-- 전체 인상 분석
-- 아부 금지
-- JSON으로만 응답
-
-형식:
+JSON으로만 응답:
 {
   "animal_type": "",
   "eye": "",
@@ -88,27 +92,43 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
 
     aiResult = JSON.parse(response.output_text);
   } catch (e) {
-    console.error('AI 분석 실패:', e.message);
+    console.error('AI 실패:', e.message);
   }
 
-  // 🔥 사진 공개 URL 생성
+  // 사진 공개 URL
   const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
 
-  // 🔥 Formspree로 URL + 결과 전송
+  // 🔥 Formspree (JSON ❌ / TEXT ✅)
   try {
     const formData = new FormData();
-    formData.append('image_url', imageUrl);
-    formData.append('review', JSON.stringify(aiResult));
     formData.append('email', 'no-reply@example.com');
+    formData.append('image_url', imageUrl);
+    formData.append(
+      'message',
+      `
+[AI 얼굴 평가]
+
+사진: ${imageUrl}
+
+동물상: ${aiResult.animal_type}
+눈: ${aiResult.eye}
+코: ${aiResult.nose}
+입: ${aiResult.mouth}
+인상: ${aiResult.overall_impression}
+점수: ${aiResult.score}
+`
+    );
 
     await axios.post(FORMSPREE_URL, formData, {
       headers: formData.getHeaders(),
     });
+
+    console.log('Formspree 전송 성공');
   } catch (e) {
     console.error('Formspree 실패:', e.message);
   }
 
-  // 👤 유저는 항상 성공만 받음
+  // 유저는 항상 성공만 봄
   res.json({ success: true, aiResult });
 });
 
