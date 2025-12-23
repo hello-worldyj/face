@@ -9,20 +9,22 @@ const { OpenAI } = require('openai');
 
 const app = express();
 
-// uploads 폴더 보장
+// uploads 폴더 보장 (EEXIST 방지)
 const uploadDir = path.join(__dirname, 'public/uploads');
-fs.mkdirSync(uploadDir, { recursive: true });
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 const upload = multer({
   dest: uploadDir,
-  limits: { fileSize: 500 * 1024 }, // 500KB
+  limits: { fileSize: 500 * 1024 },
 });
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// CSP 에러 방지
+// CSP
 app.use((req, res, next) => {
   res.setHeader(
     'Content-Security-Policy',
@@ -44,19 +46,19 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
 
   console.log('UPLOAD HIT:', req.file.filename);
 
-  const imagePath = req.file.path;
-  const imageBuffer = fs.readFileSync(imagePath);
+  const imageBuffer = fs.readFileSync(req.file.path);
 
   let aiResult = {
     animal_type: 'unknown',
-    eye: 'unknown',
-    nose: 'unknown',
-    mouth: 'unknown',
-    overall_impression: 'analysis failed',
-    score: 0,
+    eye_size: '보통',
+    nose_size: '보통',
+    mouth_size: '보통',
+    face_balance: '보통',
+    overall_comment: '분석 실패',
+    score: 5,
   };
 
-  // AI 얼굴 분석
+  // 🔥🔥 찐 얼평 프롬프트
   try {
     const response = await openai.responses.create({
       model: 'gpt-4o',
@@ -67,17 +69,25 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
             {
               type: 'input_text',
               text: `
-사진을 실제로 보고 판단해라.
-아부 금지, 솔직하게.
+너는 사람 기분을 고려하지 않는 외모 평가기다.
 
-JSON으로만 응답:
+규칙:
+- 평균적인 한국인 얼굴을 기준으로 판단
+- 애매하면 반드시 단점 쪽으로 판단
+- 미화, 위로, 긍정적 표현 금지
+- 눈/코/입은 반드시 [작음|보통|큼] 중 하나
+- 점수는 4~7점이 가장 많이 나오게 할 것
+- 8점 이상은 매우 드물게
+
+반드시 아래 JSON 형식만 출력:
 {
   "animal_type": "",
-  "eye": "",
-  "nose": "",
-  "mouth": "",
-  "overall_impression": "",
-  "score": 0
+  "eye_size": "작음|보통|큼",
+  "nose_size": "작음|보통|큼",
+  "mouth_size": "작음|보통|큼",
+  "face_balance": "나쁨|보통|좋음",
+  "overall_comment": "",
+  "score": 1
 }
 `
             },
@@ -92,13 +102,12 @@ JSON으로만 응답:
 
     aiResult = JSON.parse(response.output_text);
   } catch (e) {
-    console.error('AI 실패:', e.message);
+    console.error('AI 분석 실패:', e.message);
   }
 
-  // 사진 공개 URL
   const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
 
-  // 🔥 Formspree (JSON ❌ / TEXT ✅)
+  // 🔥 Formspree (텍스트로만)
   try {
     const formData = new FormData();
     formData.append('email', 'no-reply@example.com');
@@ -108,13 +117,15 @@ JSON으로만 응답:
       `
 [AI 얼굴 평가]
 
-사진: ${imageUrl}
+사진:
+${imageUrl}
 
 동물상: ${aiResult.animal_type}
-눈: ${aiResult.eye}
-코: ${aiResult.nose}
-입: ${aiResult.mouth}
-인상: ${aiResult.overall_impression}
+눈: ${aiResult.eye_size}
+코: ${aiResult.nose_size}
+입: ${aiResult.mouth_size}
+균형: ${aiResult.face_balance}
+총평: ${aiResult.overall_comment}
 점수: ${aiResult.score}
 `
     );
@@ -128,7 +139,7 @@ JSON으로만 응답:
     console.error('Formspree 실패:', e.message);
   }
 
-  // 유저는 항상 성공만 봄
+  // 유저는 성공만 봄
   res.json({ success: true, aiResult });
 });
 
