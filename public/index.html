@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- 🔥 CSP 직접 지정 (Render default-src 'none' 차단 해제) -->
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self';
                  img-src 'self' data:;
@@ -23,22 +22,22 @@
     }
     button {
       margin-top: 20px;
-      padding: 10px 20px;
+      padding: 12px 24px;
       font-size: 16px;
     }
     #result {
       margin-top: 30px;
       white-space: pre-wrap;
-      background: #f3f3f3;
+      background: #f2f2f2;
       padding: 15px;
       border-radius: 8px;
       text-align: left;
     }
   </style>
 </head>
-
 <body>
   <h1>AI 얼굴 평가</h1>
+
   <input type="file" id="photo" accept="image/*" />
   <br />
   <button id="send">평가 받기</button>
@@ -69,7 +68,7 @@
 
         const data = await res.json();
         result.textContent = JSON.stringify(data.aiResult, null, 2);
-      } catch (e) {
+      } catch {
         result.textContent = '딴 사진 시도';
       }
     };
