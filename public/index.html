@@ -11,7 +11,7 @@
                  script-src 'self' 'unsafe-inline';
                  style-src 'self' 'unsafe-inline';">
 
-  <title>AI 얼굴 평가</title>
+  <title>AI 얼평</title>
 
   <style>
     body {
@@ -36,7 +36,7 @@
   </style>
 </head>
 <body>
-  <h1>AI 얼굴 평가</h1>
+  <h1>AI 얼평</h1>
 
   <input type="file" id="photo" accept="image/*" />
   <br />
@@ -51,14 +51,14 @@
 
     btn.onclick = async () => {
       if (!input.files.length) {
-        alert('사진...');
+        alert('사진은여?');
         return;
       }
 
       const fd = new FormData();
       fd.append('photo', input.files[0]);
 
-      result.textContent = 'ㄱㄷ';
+      result.textContent = 'ㄱㄷㄱㄷ';
 
       try {
         const res = await fetch('/upload', {
