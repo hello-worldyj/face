@@ -35,13 +35,14 @@ app.get("/", (req, res) => {
 app.post("/upload", upload.single("photo"), async (req, res) => {
   const filePath = req.file.path;
   const fileName = path.basename(filePath);
+
+  // **중요**: 완전한 URL로 만들어야 함
   const imageUrl = `${req.protocol}://${req.get("host")}/uploads/${fileName}`;
 
   try {
     if (!DISCORD_WEBHOOK_URL) throw new Error("DISCORD_WEBHOOK_URL 환경변수가 없습니다.");
 
-    // Discord 웹훅에 payload_json을 FormData로 전송
-    const form = new FormData();
+    // Discord 웹훅에 JSON payload로 이미지 URL 보냄
     const payload = {
       content: "새 얼굴 평가가 도착했어요!",
       embeds: [
@@ -54,12 +55,11 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
         }
       ]
     };
-    form.append("payload_json", JSON.stringify(payload));
 
     const response = await fetch(DISCORD_WEBHOOK_URL, {
       method: "POST",
-      body: form,
-      headers: form.getHeaders(),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
