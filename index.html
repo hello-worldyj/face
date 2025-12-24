@@ -1,129 +1,51 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<title>얼굴 평가</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
-
-<style>
-body{
-  margin:0;
-  min-height:100vh;
-  background:linear-gradient(135deg,#0f766e,#14b8a6);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-family:system-ui;
-  color:white;
-}
-.card{
-  width:360px;
-  background:rgba(255,255,255,.15);
-  backdrop-filter:blur(18px);
-  border-radius:22px;
-  padding:26px;
-  text-align:center;
-}
-input,button{
-  width:100%;
-  padding:14px;
-  border-radius:14px;
-  border:none;
-  margin-top:10px;
-}
-button{
-  background:#2dd4bf;
-  font-weight:700;
-}
-#result{margin-top:18px;line-height:1.6}
-</style>
+  <meta charset="UTF-8" />
+  <title>얼굴 평가</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
-
 <body>
-<div class="card">
-  <h2>황금비율 얼굴 평가</h2>
-  <input type="file" id="file" accept="image/*">
-  <button onclick="analyze()">평가하기</button>
-  <div id="result"></div>
-</div>
+  <div class="card">
+    <h1> 얼굴 평가</h1>
 
-<img id="img" hidden>
+    <input type="file" id="photo" accept="image/*" />
+    <img id="preview" />
+
+    <button onclick="upload()">평가하기</button>
+
+    <div class="result">
+      <p id="score"></p>
+      <p id="feedback"></p>
+    </div>
+  </div>
 
 <script>
-let analyzed = false; // 🔒 결과 고정
+async function upload() {
+  const file = document.getElementById("photo").files[0];
+  if (!file) return alert("사진은여??");
 
-const faceMesh = new FaceMesh({
-  locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+  const formData = new FormData();
+  formData.append("photo", file);
+
+  const res = await fetch("/upload", {
+    method: "POST",
+    body: formData
+  });
+
+  const data = await res.json();
+
+  document.getElementById("score").innerText =
+    `점수: ${data.score}/10`;
+  document.getElementById("feedback").innerText =
+    data.feedback;
+}
+
+document.getElementById("photo").addEventListener("change", e => {
+  const img = document.getElementById("preview");
+  img.src = URL.createObjectURL(e.target.files[0]);
+  img.style.display = "block";
 });
-
-faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true});
-faceMesh.onResults(onResults);
-
-function d(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
-function score(actual,ideal){
-  return Math.max(0,10-Math.abs(actual-ideal)*25);
-}
-
-function feedback(s){
-  const t=[
-    "전체적인 얼굴 비율이 안정적이며 첫인상이 좋습니다.",
-    "황금비율에 가까운 구조로 균형감이 느껴집니다.",
-    "조화로운 얼굴형으로 사진 각도에 따라 더 좋아 보일 수 있어요.",
-    "개성 있는 비율로 스타일에 따라 인상이 달라질 수 있습니다."
-  ];
-  return t[Math.floor(Math.random()*t.length)];
-}
-
-async function analyze(){
-  if(analyzed) return; // 🔒 재분석 차단
-
-  const f=document.getElementById("file").files[0];
-  if(!f) return;
-
-  const img=document.getElementById("img");
-  img.src=URL.createObjectURL(f);
-  await img.decode();
-
-  faceMesh.send({image:img});
-}
-
-async function onResults(r){
-  if(!r.multiFaceLandmarks.length){
-    result.innerText=" 얼굴 인식 실패";
-    return;
-  }
-
-  analyzed=true;
-
-  const lm=r.multiFaceLandmarks[0];
-  const faceH=d(lm[10],lm[152]);
-  const faceW=d(lm[234],lm[454]);
-  const eye=d(lm[33],lm[263]);
-  const mouth=d(lm[168],lm[13]);
-
-  const s=(
-    score(faceH/faceW,1.618)+
-    score(eye/faceW,0.46)+
-    score(mouth/faceH,0.36)
-  )/3;
-
-  const final=s.toFixed(1);
-  result.innerHTML=`<b>점수: ${final}/10</b><br><br>${feedback(final)}`;
-
-  const fd=new FormData();
-  fd.append("photo",document.getElementById("file").files[0]);
-  fd.append("score",final);
-  fd.append("text",result.innerText);
-
-  fetch("/upload",{method:"POST",body:fd});
-}
-
-document.getElementById("file").onchange=()=>{
-  analyzed=false;
-  result.innerText="";
-};
 </script>
 </body>
 </html>
