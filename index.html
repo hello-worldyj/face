@@ -7,23 +7,31 @@
 </head>
 <body>
   <div class="card">
-    <h1> 얼굴 평가</h1>
+    <h1>얼굴 평가</h1>
 
     <input type="file" id="photo" accept="image/*" />
     <img id="preview" />
 
-    <button onclick="upload()">평가하기</button>
+    <button onclick="evaluate()">평가하기</button>
 
     <div class="result">
-      <p id="score"></p>
-      <p id="feedback"></p>
+      <div id="score"></div>
+      <div id="feedback"></div>
     </div>
   </div>
 
 <script>
-async function upload() {
+const preview = document.getElementById("preview");
+
+document.getElementById("photo").addEventListener("change", e => {
+  const file = e.target.files[0];
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = "block";
+});
+
+async function evaluate() {
   const file = document.getElementById("photo").files[0];
-  if (!file) return alert("사진은여??");
+  if (!file) return alert("사진 선택해");
 
   const formData = new FormData();
   formData.append("photo", file);
@@ -40,12 +48,6 @@ async function upload() {
   document.getElementById("feedback").innerText =
     data.feedback;
 }
-
-document.getElementById("photo").addEventListener("change", e => {
-  const img = document.getElementById("preview");
-  img.src = URL.createObjectURL(e.target.files[0]);
-  img.style.display = "block";
-});
 </script>
 </body>
 </html>
