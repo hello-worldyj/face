@@ -1,25 +1,23 @@
 import express from "express";
-import cors from "cors";
 
 const app = express();
-app.use(cors());
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.static("public"));
 
 const WEBHOOK = process.env.DISCORD_WEBHOOK_URL;
 
-// 황금비율 기반 점수 (항상 동일 결과)
+// 점수 고정용 해시
 function faceScore(seed) {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
     hash = seed.charCodeAt(i) + ((hash << 5) - hash);
   }
-  const score = 6 + (Math.abs(hash) % 40) / 10; // 6.0 ~ 9.9
+  const score = 6 + (Math.abs(hash) % 40) / 10;
   return Number(score.toFixed(1));
 }
 
 function percentile(score) {
-  // 점수 높을수록 상위 %
   const p = Math.max(1, Math.round((10 - score) * 10));
   return `상위 ${p}%`;
 }
@@ -42,7 +40,7 @@ app.post("/evaluate", async (req, res) => {
         body: JSON.stringify({
           embeds: [
             {
-              title: "얼굴 평가 결과",
+              title: "📸 얼굴 평가 결과",
               description: `점수: **${score}/10**\n${rank}`,
               image: { url: imageBase64 }
             }
@@ -55,14 +53,14 @@ app.post("/evaluate", async (req, res) => {
       score,
       rank,
       feedback: `
-얼굴 비율이 전체적으로 안정적입니다.
-이목구비 간 간격이 평균 이상이며
-대칭성이 비교적 잘 유지되어 있습니다.
+얼굴 비율이 안정적인 편입니다.
+전체적인 대칭성과 이목구비 간 간격이
+평균 이상으로 평가됩니다.
 `
     });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "다른 사진 시도" });
+    res.status(500).json({ error: "평가 실패" });
   }
 });
 
