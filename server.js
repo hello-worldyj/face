@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import fetch from "node-fetch";
 import crypto from "crypto";
+import FormData from "form-data";
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -32,6 +33,9 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
       throw new Error("DISCORD_WEBHOOK_URL 환경변수가 설정되어 있지 않습니다.");
     }
 
+    const form = new FormData();
+
+    // payload_json에 메시지 + 임베드 넣기 (파일 첨부 없음)
     const payload = {
       content: "새 얼굴 평가가 도착했어요!",
       embeds: [
@@ -44,13 +48,15 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
       ]
     };
 
+    form.append("payload_json", JSON.stringify(payload));
+
     await fetch(DISCORD_WEBHOOK_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: form,
+      headers: form.getHeaders()
     });
 
-    console.log("디스코드 전송 성공 (이미지 URL 임베드)");
+    console.log("디스코드 전송 성공 (form-data payload_json)");
   } catch (e) {
     console.error("디스코드 전송 실패:", e);
   }
