@@ -10,12 +10,23 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 
-const uploadDir = "./uploads";
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-const upload = multer({ dest: uploadDir });
+// ===== uploads 폴더 보장 =====
+const uploadDir = path.join(process.cwd(), "public/uploads");
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-app.use('/uploads', express.static(path.resolve(uploadDir)));
-app.use(express.static("./"));
+// ===== multer 설정 =====
+const storage = multer.diskStorage({
+  destination: uploadDir,
+  filename: (_, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, Date.now() + ext);
+  },
+});
+
+const upload = multer({ storage });
+
+app.use('/uploads', express.static(uploadDir));
+app.use(express.static("public"));
 
 app.get("/", (req, res) => {
   res.sendFile(path.resolve("index.html"));
@@ -24,25 +35,22 @@ app.get("/", (req, res) => {
 app.post("/upload", upload.single("photo"), async (req, res) => {
   const filePath = req.file.path;
   const fileName = path.basename(filePath);
-
-  const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
-  const publicUrl = `${baseUrl}/uploads/${fileName}`;
+  const imageUrl = `${req.protocol}://${req.get("host")}/uploads/${fileName}`;
 
   try {
-    if (!DISCORD_WEBHOOK_URL) {
-      throw new Error("DISCORD_WEBHOOK_URL 환경변수가 설정되어 있지 않습니다.");
-    }
+    if (!DISCORD_WEBHOOK_URL) throw new Error("DISCORD_WEBHOOK_URL 환경변수가 없습니다.");
 
-    // FormData로 payload_json 보내기 (파일 첨부 없이)
+    // Discord 웹훅에 payload_json을 FormData로 전송
     const form = new FormData();
     const payload = {
       content: "새 얼굴 평가가 도착했어요!",
       embeds: [
         {
           title: "AI 얼굴 평가 결과",
-          image: { url: publicUrl },
+          image: { url: imageUrl },
           color: 5814783,
-          footer: { text: "Face Review Bot" }
+          footer: { text: "Face Review Bot" },
+          timestamp: new Date().toISOString()
         }
       ]
     };
@@ -51,17 +59,17 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
     const response = await fetch(DISCORD_WEBHOOK_URL, {
       method: "POST",
       body: form,
-      headers: form.getHeaders()
+      headers: form.getHeaders(),
     });
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(`디스코드 응답 오류: ${response.status} - ${text}`);
+      throw new Error(`Discord 전송 오류: ${response.status} ${text}`);
     }
 
-    console.log("디스코드 전송 성공 (임베드 포함)");
+    console.log("Discord 전송 성공");
   } catch (e) {
-    console.error("디스코드 전송 실패:", e);
+    console.error("Discord 전송 실패:", e);
   }
 
   try {
@@ -79,10 +87,10 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
     else if (percent <= 40) feedback = "평균 이상으로 안정적인 인상입니다.";
     else feedback = "개성이 느껴지는 얼굴입니다.";
 
-    res.json({ score, percent, feedback, imageUrl: publicUrl });
+    res.json({ score, percent, feedback, imageUrl });
   } catch (e) {
-    console.error("평가 점수 계산 중 에러:", e);
-    res.status(500).json({ error: "평가 중 오류가 발생했습니다." });
+    console.error("평가 계산 중 오류:", e);
+    res.status(500).json({ error: "평가 처리 중 오류가 발생했습니다." });
   } finally {
     fs.unlink(filePath, (err) => {
       if (err) console.error("업로드 파일 삭제 실패:", err);
@@ -91,5 +99,5 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log("Server running on", PORT);
+  console.log("Server running on port", PORT);
 });
