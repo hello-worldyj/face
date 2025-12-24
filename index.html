@@ -34,6 +34,7 @@
       border-radius: 14px; border: none;
       font-size: 16px; background: #2dd4bf;
       color: #042f2e; font-weight: 700;
+      cursor: pointer;
     }
     .preview img {
       width: 100%; margin-top: 16px;
@@ -56,7 +57,7 @@
     <h1>AI 얼굴 평가</h1>
     <form id="form">
       <input type="file" name="photo" accept="image/*" required />
-      <button>평가하기</button>
+      <button type="submit">평가하기</button>
     </form>
     <div class="preview" id="preview"></div>
     <div class="result" id="result" style="display:none;"></div>
@@ -69,25 +70,42 @@
     const fileInput = document.querySelector("input[type=file]");
 
     fileInput.addEventListener("change", () => {
-      preview.innerHTML = `<img src="${URL.createObjectURL(fileInput.files[0])}">`;
+      preview.innerHTML = `<img src="${URL.createObjectURL(fileInput.files[0])}" alt="선택한 사진" />`;
+      result.style.display = "none";
+      result.textContent = "";
     });
 
-    form.addEventListener("submit", async e => {
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      if (!fileInput.files.length) {
+        alert("사진은여?.");
+        return;
+      }
+
       result.style.display = "block";
-      result.textContent = "분석 중...";
+      result.textContent = "ㄱㄷ...";
 
-      const res = await fetch("/upload", {
-        method: "POST",
-        body: new FormData(form)
-      });
-      const json = await res.json();
+      try {
+        const res = await fetch("/upload", {
+          method: "POST",
+          body: new FormData(form),
+        });
 
-      result.innerHTML = `
-        <div class="score">점수: ${json.score} / 10</div>
-        <div class="percent">상위 ${json.percent}%</div>
-        <div>${json.feedback}</div>
-      `;
+        if (!res.ok) {
+          throw new Error("딴 사진 시도");
+        }
+
+        const data = await res.json();
+
+        result.innerHTML = `
+          <div class="score">점수: ${data.score} / 10</div>
+          <div class="percent">상위 ${data.percent}%</div>
+          <div>${data.feedback}</div>
+          <img src="${data.imageUrl}" alt="업로드된 사진" style="margin-top: 12px; border-radius: 12px; width: 100%;" />
+        `;
+      } catch (err) {
+        result.textContent = `오류 발생: ${err.message}`;
+      }
     });
   </script>
 </body>
