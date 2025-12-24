@@ -4,20 +4,16 @@ import fs from "fs";
 import path from "path";
 import fetch from "node-fetch";
 import crypto from "crypto";
-import FormData from "form-data";
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 
-// 업로드 디렉터리 준비
 const uploadDir = "./uploads";
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 const upload = multer({ dest: uploadDir });
 
-// 업로드 폴더를 정적파일로 서빙 (이미지 외부 접근 가능)
 app.use('/uploads', express.static(path.resolve(uploadDir)));
-
 app.use(express.static("./"));
 
 app.get("/", (req, res) => {
@@ -28,7 +24,6 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
   const filePath = req.file.path;
   const fileName = path.basename(filePath);
 
-  // 외부 접근 가능한 URL 만들기
   const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
   const publicUrl = `${baseUrl}/uploads/${fileName}`;
 
@@ -37,13 +32,7 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
       throw new Error("DISCORD_WEBHOOK_URL 환경변수가 설정되어 있지 않습니다.");
     }
 
-    // 디스코드 임베드 메시지에 외부 URL 이미지 넣기, 파일 첨부 시 contentType 명시
-    const form = new FormData();
-    form.append("file", fs.createReadStream(filePath), {
-      filename: fileName,
-      contentType: req.file.mimetype
-    });
-
+    // 첨부파일 없이, 임베드 이미지 URL만 보내기
     const payload = {
       content: "새 얼굴 평가가 도착했어요!",
       embeds: [
@@ -56,20 +45,17 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
       ]
     };
 
-    form.append("payload_json", JSON.stringify(payload));
-
     await fetch(DISCORD_WEBHOOK_URL, {
       method: "POST",
-      body: form,
-      headers: form.getHeaders()
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
     });
 
-    console.log("디스코드 전송 성공");
+    console.log("디스코드 전송 성공 (파일 첨부 없이 URL만)");
   } catch (e) {
     console.error("디스코드 전송 실패:", e);
   }
 
-  // 얼굴 점수 계산
   try {
     const buffer = fs.readFileSync(filePath);
     const hash = crypto.createHash("sha256").update(buffer).digest("hex");
