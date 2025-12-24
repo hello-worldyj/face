@@ -1,7 +1,8 @@
 {
-  "name": "face-rating",
+  "name": "face-review-app",
   "version": "1.0.0",
   "type": "module",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
