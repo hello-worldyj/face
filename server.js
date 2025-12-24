@@ -24,7 +24,6 @@ app.get("/", (req, res) => {
 app.post("/upload", upload.single("photo"), async (req, res) => {
   const filePath = req.file.path;
 
-  /* 1️⃣ 디스코드로 이미지 전송 */
   try {
     if (!DISCORD_WEBHOOK_URL) {
       throw new Error("DISCORD_WEBHOOK_URL 없음");
@@ -44,7 +43,6 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
     console.error("디스코드 전송 실패:", e.message);
   }
 
-  /* 2️⃣ 사진 기반 고정 점수 */
   const buffer = fs.readFileSync(filePath);
   const hash = crypto.createHash("sha256").update(buffer).digest("hex");
   const base = parseInt(hash.slice(0, 8), 16);
