@@ -1,157 +1,129 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <title>황금비율 얼굴 평가</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="UTF-8">
+<title>황금비율 얼굴 평가</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- MediaPipe -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 
-  <style>
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: linear-gradient(135deg,#0f766e,#14b8a6);
-      font-family: system-ui, sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-    }
-    .card {
-      width: 360px;
-      background: rgba(255,255,255,0.12);
-      backdrop-filter: blur(18px);
-      border-radius: 20px;
-      padding: 24px;
-      text-align: center;
-      box-shadow: 0 20px 40px rgba(0,0,0,.3);
-    }
-    h1 { font-size: 22px; margin-bottom: 16px; }
-    input {
-      width: 100%;
-      padding: 14px;
-      border-radius: 12px;
-      border: none;
-      margin-bottom: 12px;
-    }
-    button {
-      width: 100%;
-      padding: 14px;
-      border-radius: 14px;
-      border: none;
-      font-size: 16px;
-      background: #2dd4bf;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    #result {
-      margin-top: 18px;
-      line-height: 1.5;
-    }
-    canvas { display:none; }
-  </style>
+<style>
+body{
+  margin:0;
+  min-height:100vh;
+  background:linear-gradient(135deg,#0f766e,#14b8a6);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:system-ui;
+  color:white;
+}
+.card{
+  width:360px;
+  background:rgba(255,255,255,.15);
+  backdrop-filter:blur(18px);
+  border-radius:22px;
+  padding:26px;
+  text-align:center;
+}
+input,button{
+  width:100%;
+  padding:14px;
+  border-radius:14px;
+  border:none;
+  margin-top:10px;
+}
+button{
+  background:#2dd4bf;
+  font-weight:700;
+}
+#result{margin-top:18px;line-height:1.6}
+</style>
 </head>
 
 <body>
 <div class="card">
-  <h1> 얼굴 평가</h1>
+  <h2>황금비율 얼굴 평가</h2>
   <input type="file" id="file" accept="image/*">
   <button onclick="analyze()">평가하기</button>
   <div id="result"></div>
 </div>
 
-<img id="img" hidden />
-<canvas id="canvas"></canvas>
+<img id="img" hidden>
 
 <script>
+let analyzed = false; // 🔒 결과 고정
+
 const faceMesh = new FaceMesh({
-  locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+  locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
 });
 
-faceMesh.setOptions({
-  maxNumFaces: 1,
-  refineLandmarks: true
-});
-
+faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true});
 faceMesh.onResults(onResults);
 
-function dist(a,b){
-  return Math.hypot(a.x-b.x,a.y-b.y);
+function d(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+function score(actual,ideal){
+  return Math.max(0,10-Math.abs(actual-ideal)*25);
 }
 
-function scoreRatio(actual, ideal){
-  const diff = Math.abs(actual - ideal);
-  return Math.max(0, 10 - diff * 25);
-}
-
-function feedback(score){
-  const high = [
-    "얼굴 비율이 매우 안정적이고 전체적인 조화가 뛰어납니다.",
-    "황금비율에 가까운 구조로 첫인상이 상당히 좋게 느껴집니다."
+function feedback(s){
+  const t=[
+    "전체적인 얼굴 비율이 안정적이며 첫인상이 좋습니다.",
+    "황금비율에 가까운 구조로 균형감이 느껴집니다.",
+    "조화로운 얼굴형으로 사진 각도에 따라 더 좋아 보일 수 있어요.",
+    "개성 있는 비율로 스타일에 따라 인상이 달라질 수 있습니다."
   ];
-  const mid = [
-    "전체적인 균형은 좋지만 각도에 따라 인상이 달라질 수 있어요.",
-    "조화로운 편이지만 일부 비율에서 차이가 보입니다."
-  ];
-  const low = [
-    "개성 있는 얼굴 비율로 스타일에 따라 매력이 달라질 수 있어요.",
-    "황금비율과는 차이가 있지만 개성이 분명한 인상입니다."
-  ];
-  const arr = score >= 8 ? high : score >= 6 ? mid : low;
-  return arr[Math.floor(Math.random()*arr.length)];
+  return t[Math.floor(Math.random()*t.length)];
 }
 
 async function analyze(){
-  const file = document.getElementById("file").files[0];
-  if(!file) return;
+  if(analyzed) return; // 🔒 재분석 차단
 
-  const img = document.getElementById("img");
-  img.src = URL.createObjectURL(file);
+  const f=document.getElementById("file").files[0];
+  if(!f) return;
+
+  const img=document.getElementById("img");
+  img.src=URL.createObjectURL(f);
   await img.decode();
-  await faceMesh.send({image: img});
+
+  faceMesh.send({image:img});
 }
 
-async function onResults(res){
-  const out = document.getElementById("result");
-
-  if(!res.multiFaceLandmarks.length){
-    out.innerHTML = "얼굴 인식 실패";
+async function onResults(r){
+  if(!r.multiFaceLandmarks.length){
+    result.innerText=" 얼굴 인식 실패";
     return;
   }
 
-  const lm = res.multiFaceLandmarks[0];
+  analyzed=true;
 
-  const faceH = dist(lm[10], lm[152]);
-  const faceW = dist(lm[234], lm[454]);
-  const eyeDist = dist(lm[33], lm[263]);
-  const eyeMouth = dist(lm[168], lm[13]);
+  const lm=r.multiFaceLandmarks[0];
+  const faceH=d(lm[10],lm[152]);
+  const faceW=d(lm[234],lm[454]);
+  const eye=d(lm[33],lm[263]);
+  const mouth=d(lm[168],lm[13]);
 
-  const r1 = faceH / faceW;
-  const r2 = eyeDist / faceW;
-  const r3 = eyeMouth / faceH;
+  const s=(
+    score(faceH/faceW,1.618)+
+    score(eye/faceW,0.46)+
+    score(mouth/faceH,0.36)
+  )/3;
 
-  const s1 = scoreRatio(r1,1.618);
-  const s2 = scoreRatio(r2,0.46);
-  const s3 = scoreRatio(r3,0.36);
+  const final=s.toFixed(1);
+  result.innerHTML=`<b>점수: ${final}/10</b><br><br>${feedback(final)}`;
 
-  const score = ((s1+s2+s3)/3).toFixed(1);
-
-  out.innerHTML = `
-    <b>점수: ${score} / 10</b><br><br>
-    ${feedback(score)}
-  `;
-
-  // 서버로 사진 + 점수 전송
-  const fd = new FormData();
-  fd.append("photo", document.getElementById("file").files[0]);
-  fd.append("score", score);
-  fd.append("text", out.innerText);
+  const fd=new FormData();
+  fd.append("photo",document.getElementById("file").files[0]);
+  fd.append("score",final);
+  fd.append("text",result.innerText);
 
   fetch("/upload",{method:"POST",body:fd});
 }
+
+document.getElementById("file").onchange=()=>{
+  analyzed=false;
+  result.innerText="";
+};
 </script>
 </body>
 </html>
