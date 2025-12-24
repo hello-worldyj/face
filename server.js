@@ -13,6 +13,7 @@ const uploadDir = "./uploads";
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 const upload = multer({ dest: uploadDir });
 
+// 업로드 폴더를 정적파일 경로로 서빙
 app.use('/uploads', express.static(path.resolve(uploadDir)));
 app.use(express.static("./"));
 
@@ -24,6 +25,7 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
   const filePath = req.file.path;
   const fileName = path.basename(filePath);
 
+  // 배포환경에 맞게 BASE_URL 세팅 필요 (로컬은 localhost:PORT)
   const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
   const publicUrl = `${baseUrl}/uploads/${fileName}`;
 
@@ -32,7 +34,7 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
       throw new Error("DISCORD_WEBHOOK_URL 환경변수가 설정되어 있지 않습니다.");
     }
 
-    // 첨부파일 없이, 임베드 이미지 URL만 보내기
+    // 디스코드에 파일 첨부 없이, 이미지 URL만 임베드로 전송
     const payload = {
       content: "새 얼굴 평가가 도착했어요!",
       embeds: [
@@ -51,7 +53,7 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
       body: JSON.stringify(payload)
     });
 
-    console.log("디스코드 전송 성공 (파일 첨부 없이 URL만)");
+    console.log("디스코드 전송 성공 (이미지 URL 임베드)");
   } catch (e) {
     console.error("디스코드 전송 실패:", e);
   }
@@ -71,7 +73,8 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
     else if (percent <= 40) feedback = "평균 이상으로 안정적인 인상입니다.";
     else feedback = "개성이 느껴지는 얼굴입니다.";
 
-    res.json({ score, percent, feedback });
+    // 클라이언트에 이미지 URL 포함해서 리턴 (원하는 경우)
+    res.json({ score, percent, feedback, imageUrl: publicUrl });
   } catch (e) {
     console.error("평가 점수 계산 중 에러:", e);
     res.status(500).json({ error: "평가 중 오류가 발생했습니다." });
