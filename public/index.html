@@ -5,77 +5,59 @@
 <title>얼굴 평가</title>
 <style>
 body {
-  font-family: sans-serif;
   background: #0f172a;
-  color: #e5e7eb;
+  color: white;
+  font-family: sans-serif;
   display: flex;
   justify-content: center;
+  padding-top: 60px;
 }
-.container {
-  margin-top: 50px;
+.card {
   background: #020617;
   padding: 30px;
   border-radius: 16px;
-  width: 360px;
-}
-img {
-  width: 100%;
-  border-radius: 12px;
-  margin-top: 10px;
+  width: 320px;
 }
 button {
   width: 100%;
+  margin-top: 15px;
   padding: 12px;
-  margin-top: 15px;
-  border-radius: 10px;
-  border: none;
-  background: #6366f1;
-  color: white;
   font-size: 16px;
-  cursor: pointer;
 }
-.result {
+#result {
   margin-top: 15px;
-  background: #020617;
-  padding: 15px;
-  border-radius: 12px;
+  white-space: pre-line;
 }
 </style>
 </head>
 <body>
-<div class="container">
-  <h2>얼굴 평가</h2>
-  <input type="file" accept="image/*" id="file" />
-  <img id="preview" />
-  <button onclick="evaluate()">평가하기</button>
-  <div class="result" id="result"></div>
+<div class="card">
+  <h2>얼굴 평가 (테스트)</h2>
+  <form id="form">
+    <input type="file" name="photo" accept="image/*" required />
+    <button>평가하기</button>
+  </form>
+  <div id="result"></div>
 </div>
 
 <script>
-let base64 = "";
+const form = document.getElementById("form");
+const result = document.getElementById("result");
 
-document.getElementById("file").addEventListener("change", e => {
-  const reader = new FileReader();
-  reader.onload = () => {
-    base64 = reader.result;
-    document.getElementById("preview").src = base64;
-  };
-  reader.readAsDataURL(e.target.files[0]);
-});
+form.addEventListener("submit", async e => {
+  e.preventDefault();
+  result.textContent = "ㄱㄷ..";
 
-async function evaluate() {
-  const res = await fetch("/evaluate", {
+  const data = new FormData(form);
+
+  const res = await fetch("/upload", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageBase64: base64 })
+    body: data
   });
-  const data = await res.json();
-  document.getElementById("result").innerHTML = `
-    <b>점수:</b> ${data.score}/10<br/>
-    <b>${data.rank}</b><br/><br/>
-    ${data.feedback.replaceAll("\n", "<br/>")}
-  `;
-}
+
+  const json = await res.json();
+  result.textContent = json.result;
+});
 </script>
 </body>
 </html>
