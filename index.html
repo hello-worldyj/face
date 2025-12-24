@@ -3,24 +3,94 @@
 <head>
   <meta charset="utf-8" />
   <title>AI 얼굴 평가</title>
+  <style>
+    body {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+
+    .card {
+      background: white;
+      width: 360px;
+      padding: 24px;
+      border-radius: 18px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+      text-align: center;
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 22px;
+    }
+
+    input[type="file"] {
+      margin: 16px 0;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 12px;
+      background: #667eea;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #5a6fdc;
+    }
+
+    .result {
+      margin-top: 20px;
+      background: #f4f6fb;
+      padding: 16px;
+      border-radius: 12px;
+      text-align: left;
+      white-space: pre-wrap;
+      font-size: 14px;
+    }
+
+    .score {
+      font-size: 26px;
+      font-weight: bold;
+      color: #667eea;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .loading {
+      color: #888;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
-  <h2>AI 얼굴 평가</h2>
 
-  <form id="form">
-    <input type="file" name="photo" accept="image/*" required />
-    <button>평가 받기</button>
-  </form>
+  <div class="card">
+    <h2>AI 얼굴 평가</h2>
 
-  <pre id="result"></pre>
+    <form id="form">
+      <input type="file" name="photo" accept="image/*" required />
+      <button>평가 받기</button>
+    </form>
+
+    <div id="output"></div>
+  </div>
 
   <script>
     const form = document.getElementById("form");
-    const result = document.getElementById("result");
+    const output = document.getElementById("output");
 
     form.addEventListener("submit", async e => {
       e.preventDefault();
-      result.textContent = "ㄱㄷ...";
+      output.innerHTML = '<div class="loading">ㄱㄷ...</div>';
 
       const res = await fetch("/upload", {
         method: "POST",
@@ -28,9 +98,15 @@
       });
 
       const json = await res.json();
-      result.textContent =
-        `점수: ${json.score}/10\n\n평가:\n${json.comment}`;
+
+      output.innerHTML = `
+        <div class="result">
+          <div class="score">${json.score} / 10</div>
+          ${json.comment}
+        </div>
+      `;
     });
   </script>
+
 </body>
 </html>
