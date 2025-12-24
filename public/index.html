@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>얼굴 평가</title>
+<style>
+body {
+  font-family: sans-serif;
+  background: #0f172a;
+  color: #e5e7eb;
+  display: flex;
+  justify-content: center;
+}
+.container {
+  margin-top: 50px;
+  background: #020617;
+  padding: 30px;
+  border-radius: 16px;
+  width: 360px;
+}
+img {
+  width: 100%;
+  border-radius: 12px;
+  margin-top: 10px;
+}
+button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 15px;
+  border-radius: 10px;
+  border: none;
+  background: #6366f1;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+}
+.result {
+  margin-top: 15px;
+  background: #020617;
+  padding: 15px;
+  border-radius: 12px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h2>얼굴 평가</h2>
+  <input type="file" accept="image/*" id="file" />
+  <img id="preview" />
+  <button onclick="evaluate()">평가하기</button>
+  <div class="result" id="result"></div>
+</div>
+
+<script>
+let base64 = "";
+
+document.getElementById("file").addEventListener("change", e => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    base64 = reader.result;
+    document.getElementById("preview").src = base64;
+  };
+  reader.readAsDataURL(e.target.files[0]);
+});
+
+async function evaluate() {
+  const res = await fetch("/evaluate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ imageBase64: base64 })
+  });
+  const data = await res.json();
+  document.getElementById("result").innerHTML = `
+    <b>점수:</b> ${data.score}/10<br/>
+    <b>${data.rank}</b><br/><br/>
+    ${data.feedback.replaceAll("\n", "<br/>")}
+  `;
+}
+</script>
+</body>
+</html>
