@@ -77,13 +77,12 @@
     .score {
       font-size: 20px;
       font-weight: 800;
-      margin-bottom: 6px;
     }
 
     .percent {
       color: #99f6e4;
       font-weight: 700;
-      margin-bottom: 8px;
+      margin: 6px 0;
     }
   </style>
 </head>
@@ -98,7 +97,6 @@
     </form>
 
     <div class="preview" id="preview"></div>
-
     <div class="result" id="result" style="display:none;"></div>
   </div>
 
@@ -111,28 +109,20 @@
     fileInput.addEventListener("change", () => {
       const file = fileInput.files[0];
       if (!file) return;
-
-      const url = URL.createObjectURL(file);
-      preview.innerHTML = `<img src="${url}">`;
+      preview.innerHTML = `<img src="${URL.createObjectURL(file)}">`;
     });
 
     form.addEventListener("submit", async e => {
       e.preventDefault();
-
       result.style.display = "block";
-      result.innerHTML = "분석 중...";
+      result.textContent = "ㄱㄷ...";
 
       const data = new FormData(form);
-
-      const res = await fetch("/upload", {
-        method: "POST",
-        body: data
-      });
-
+      const res = await fetch("/upload", { method: "POST", body: data });
       const json = await res.json();
 
       result.innerHTML = `
-        <div class="score">점수: ${json.score}/10</div>
+        <div class="score">점수: ${json.score} / 10</div>
         <div class="percent">상위 ${json.percent}%</div>
         <div>${json.feedback}</div>
       `;
