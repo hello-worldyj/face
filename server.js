@@ -33,9 +33,8 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
       throw new Error("DISCORD_WEBHOOK_URL 환경변수가 설정되어 있지 않습니다.");
     }
 
+    // FormData로 payload_json 보내기 (파일 첨부 없이)
     const form = new FormData();
-
-    // payload_json에 메시지 + 임베드 넣기 (파일 첨부 없음)
     const payload = {
       content: "새 얼굴 평가가 도착했어요!",
       embeds: [
@@ -47,16 +46,20 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
         }
       ]
     };
-
     form.append("payload_json", JSON.stringify(payload));
 
-    await fetch(DISCORD_WEBHOOK_URL, {
+    const response = await fetch(DISCORD_WEBHOOK_URL, {
       method: "POST",
       body: form,
       headers: form.getHeaders()
     });
 
-    console.log("디스코드 전송 성공 (form-data payload_json)");
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`디스코드 응답 오류: ${response.status} - ${text}`);
+    }
+
+    console.log("디스코드 전송 성공 (임베드 포함)");
   } catch (e) {
     console.error("디스코드 전송 실패:", e);
   }
