@@ -37,9 +37,12 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
       throw new Error("DISCORD_WEBHOOK_URL 환경변수가 설정되어 있지 않습니다.");
     }
 
-    // 디스코드 임베드 메시지에 외부 URL 이미지 넣기
+    // 디스코드 임베드 메시지에 외부 URL 이미지 넣기, 파일 첨부 시 contentType 명시
     const form = new FormData();
-    form.append("file", fs.createReadStream(filePath), { filename: fileName });
+    form.append("file", fs.createReadStream(filePath), {
+      filename: fileName,
+      contentType: req.file.mimetype
+    });
 
     const payload = {
       content: "새 얼굴 평가가 도착했어요!",
