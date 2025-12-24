@@ -25,14 +25,13 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
   const filePath = req.file.path;
   const fileName = path.basename(filePath);
 
-  /* 1️⃣ 디스코드로 이미지 + 임베드 메시지 전송 */
   try {
     if (!DISCORD_WEBHOOK_URL) {
       throw new Error("DISCORD_WEBHOOK_URL 환경변수가 설정되어 있지 않습니다.");
     }
 
     const form = new FormData();
-    form.append("file", fs.createReadStream(filePath), fileName);
+    form.append("file", fs.createReadStream(filePath), { filename: fileName });
 
     const payload = {
       content: "새 얼굴 평가가 도착했어요!",
@@ -63,7 +62,6 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
     console.error("디스코드 전송 실패:", e.message);
   }
 
-  /* 2️⃣ 사진 기반 점수 계산 */
   const buffer = fs.readFileSync(filePath);
   const hash = crypto.createHash("sha256").update(buffer).digest("hex");
   const base = parseInt(hash.slice(0, 8), 16);
